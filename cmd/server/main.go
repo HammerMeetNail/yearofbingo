@@ -124,8 +124,9 @@ func run() error {
 	fs := http.FileServer(http.Dir("web/static"))
 	mux.Handle("GET /static/", http.StripPrefix("/static/", fs))
 
-	// SPA catch-all route (serves index.html for client-side routing)
-	mux.HandleFunc("GET /", pageHandler.Index)
+	// SPA route - serve index.html for the root path
+	// Hash-based routing (#home, #login, etc.) is handled client-side
+	mux.HandleFunc("GET /{$}", pageHandler.Index)
 
 	// Build middleware chain
 	var handler http.Handler = mux

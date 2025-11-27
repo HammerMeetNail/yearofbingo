@@ -34,5 +34,7 @@ func (h *PageHandler) Index(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	h.templates.ExecuteTemplate(w, "index.html", data)
+	if err := h.templates.ExecuteTemplate(w, "index.html", data); err != nil {
+		http.Error(w, "Template error: "+err.Error(), http.StatusInternalServerError)
+	}
 }
