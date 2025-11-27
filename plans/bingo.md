@@ -407,6 +407,109 @@ GET /api/cards/:id/stats        - Card statistics
 
 ---
 
+## Phase 8.5: Comprehensive Testing
+
+### 8.5.1 Go Unit Tests
+
+Tests for all backend packages using Go's standard `testing` package with table-driven tests.
+
+**Services Layer** (`internal/services/*_test.go`):
+- `auth_test.go` - Password hashing, token generation, session validation
+- `user_test.go` - User creation validation, email normalization, display name validation
+- `card_test.go` - Card creation, item positioning, shuffle algorithm, finalization logic, bingo detection
+- `suggestion_test.go` - Category filtering, random selection
+- `friend_test.go` - Request validation, status transitions, bidirectional friendship logic
+- `reaction_test.go` - Emoji validation, one-per-user enforcement
+
+**Handlers Layer** (`internal/handlers/*_test.go`):
+- Test HTTP handlers using `httptest` package
+- Mock service interfaces for isolation
+- `auth_test.go` - Register/login/logout request handling, error responses
+- `card_test.go` - Card CRUD operations, item management, position validation
+- `friend_test.go` - Request/accept/reject flows, authorization checks
+- `reaction_test.go` - React/unreact operations
+
+**Middleware Layer** (`internal/middleware/*_test.go`):
+- `csrf_test.go` - Token generation, validation, cookie handling
+- `auth_test.go` - Session validation, context injection, unauthorized responses
+- `security_test.go` - Header injection verification
+- `compress_test.go` - Gzip encoding verification
+- `cache_test.go` - Cache header application
+
+**Models Layer** (`internal/models/*_test.go`):
+- `card_test.go` - Grid position utilities, bingo line detection
+- Validation methods for all models
+
+**Config Layer** (`internal/config/*_test.go`):
+- `config_test.go` - Environment variable parsing, defaults
+
+### 8.5.2 Frontend Unit Tests
+
+JavaScript tests using a lightweight test framework (no build step required).
+
+**Test Framework**: Simple test runner in vanilla JS that can run in Node.js or browser
+
+**API Client Tests** (`web/static/js/api.test.js`):
+- CSRF token handling
+- Request/response formatting
+- Error handling behavior
+- All API method signatures
+
+**App Logic Tests** (`web/static/js/app.test.js`):
+- Routing logic (hash parsing, route matching)
+- Bingo detection algorithm (client-side validation)
+- Grid position utilities
+- Form validation helpers
+- Date formatting utilities
+- State management helpers
+
+### 8.5.3 Test Infrastructure
+
+**Go Test Setup**:
+- Use `testify` for assertions (optional, can use standard library)
+- Table-driven tests for comprehensive coverage
+- Mock interfaces for database/Redis isolation
+- Test helpers in `internal/testutil/` package
+
+**Running Tests**:
+```bash
+# Run all Go tests
+go test ./...
+
+# Run with coverage
+go test -cover ./...
+
+# Run with verbose output
+go test -v ./...
+
+# Run specific package
+go test ./internal/services/...
+
+# Run JS tests
+node web/static/js/tests/runner.js
+```
+
+### 8.5.4 Test Coverage Goals
+- Services: 80%+ coverage (business logic is critical)
+- Handlers: 70%+ coverage (HTTP layer)
+- Middleware: 80%+ coverage (security-critical)
+- Models: 60%+ coverage (simple data structures)
+- Frontend: Key algorithms and utilities tested
+
+### 8.5.5 Deliverables
+- [x] Go test infrastructure and helpers (`internal/testutil/`)
+- [x] Service layer unit tests
+- [x] Handler layer unit tests
+- [x] Middleware unit tests
+- [x] Model unit tests
+- [x] Config unit tests
+- [x] Frontend test runner (browser-based HTML)
+- [x] API client tests
+- [x] App logic tests
+- [x] Test documentation in CLAUDE.md
+
+---
+
 ## Phase 9: Containerization & CI/CD
 
 ### 9.1 Container Setup
@@ -427,7 +530,8 @@ FROM alpine:3.19
 ### 9.3 CI Pipeline (GitHub Actions)
 ```yaml
 - Lint (golangci-lint, eslint)
-- Test (go test, integration tests)
+- Test (go test ./... with coverage report)
+- Test (node web/static/js/tests/runner.js)
 - Build container image
 - Push to quay.io
 - Security scan (trivy)
@@ -538,5 +642,6 @@ FROM alpine:3.19
 6. **Social** - Friends and reactions
 7. **Archive** - Historical cards and stats
 8. **Polish** - Performance, security, accessibility
+8.5. **Testing** - Go unit tests, frontend unit tests
 9. **CI/CD** - Pipeline, containers, deployment
 10. **Launch** - Production deployment

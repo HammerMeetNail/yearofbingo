@@ -56,6 +56,28 @@ go build -o server ./cmd/server
 go mod tidy
 ```
 
+### Testing
+
+Tests run in containers to match the production environment:
+
+```bash
+# Run all tests (Go + JavaScript)
+./scripts/test.sh
+
+# Run with coverage report
+./scripts/test.sh --coverage
+```
+
+Or run locally:
+
+```bash
+# Go tests
+go test ./...
+
+# JavaScript tests (requires Node.js, no npm dependencies)
+node web/static/js/tests/runner.js
+```
+
 ## Project Structure
 
 ```
