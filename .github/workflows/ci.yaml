@@ -5,6 +5,12 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      deploy_only:
+        description: 'Skip build, deploy existing image'
+        type: boolean
+        default: false
 
 env:
   GO_VERSION: "1.24"
@@ -217,3 +223,47 @@ jobs:
         run: |
           # Sign by digest (more secure than signing by tag)
           cosign sign --yes ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.digest.outputs.digest }}
+
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [scan-and-push]
+    if: |
+      always() &&
+      (needs.scan-and-push.result == 'success' || needs.scan-and-push.result == 'skipped') &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to server
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          # Copy compose file to server
+          scp -o StrictHostKeyChecking=accept-new compose.server.yaml deploy@"$SERVER_HOST":/opt/yearofbingo/compose.yaml
+
+          # Deploy
+          ssh -o StrictHostKeyChecking=accept-new deploy@"$SERVER_HOST" << EOF
+            cd /opt/yearofbingo
+
+            # Create/update .env file with secrets
+            cat > .env << 'ENVFILE'
+          DB_PASSWORD=${DB_PASSWORD}
+          REDIS_PASSWORD=${REDIS_PASSWORD}
+          ENVFILE
+            chmod 600 .env
+
+            # Pull latest image and restart
+            podman pull quay.io/yearofbingo/yearofbingo:latest
+            podman-compose down || true
+            podman-compose up -d
+          EOF
