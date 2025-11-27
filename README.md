@@ -1,6 +1,7 @@
 # NYE Bingo
 
 [![CI](https://github.com/HammerMeetNail/nye_bingo/actions/workflows/ci.yaml/badge.svg)](https://github.com/HammerMeetNail/nye_bingo/actions/workflows/ci.yaml)
+[![codecov](https://codecov.io/gh/HammerMeetNail/nye_bingo/graph/badge.svg)](https://codecov.io/gh/HammerMeetNail/nye_bingo)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/HammerMeetNail/nye_bingo)](https://go.dev/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
