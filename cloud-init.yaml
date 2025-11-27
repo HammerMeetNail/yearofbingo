@@ -12,7 +12,7 @@ users:
     sudo: ["ALL=(ALL) NOPASSWD:ALL"]
     shell: /bin/bash
     ssh_authorized_keys:
-      - ssh-ed25519 AAAA... # CI deploy key (from ~/.ssh/hetzner_yearofbingo_ci.pub)
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICkOhxkw7DF9PYJep6cSBBpvqMWjVZZYKl8ZrLAaBV9i yearofbingo-ci
 
 ssh_pwauth: false
 disable_root: true
@@ -45,12 +45,14 @@ write_files:
       WantedBy=multi-user.target
 
   # Cloudflare tunnel config
+  # Note: credentials-file uses tunnel UUID. Get this from:
+  # cloudflared tunnel list
   - path: /home/deploy/.cloudflared/config.yml
     owner: deploy:deploy
     permissions: "0600"
     content: |
       tunnel: yearofbingo
-      credentials-file: /home/deploy/.cloudflared/credentials.json
+      credentials-file: /home/deploy/.cloudflared/6858ee6a-fee0-4d96-8e20-8f4c7351c57b.json
 
       ingress:
         - hostname: yearofbingo.com
@@ -58,6 +60,25 @@ write_files:
         - hostname: ssh.yearofbingo.com
           service: ssh://localhost:22
         - service: http_status:404
+
+  # App service (starts podman-compose on boot)
+  - path: /etc/systemd/system/yearofbingo.service
+    content: |
+      [Unit]
+      Description=Year of Bingo App
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      User=deploy
+      WorkingDirectory=/opt/yearofbingo
+      ExecStart=/usr/bin/podman-compose up -d
+      ExecStop=/usr/bin/podman-compose down
+
+      [Install]
+      WantedBy=multi-user.target
 
 runcmd:
   # Format volume if not already formatted
@@ -95,6 +116,11 @@ runcmd:
   - mkdir -p /home/deploy/.cloudflared
   - chown -R deploy:deploy /home/deploy/.cloudflared
 
+  # Enable the app service
+  - systemctl daemon-reload
+  - systemctl enable yearofbingo.service
+
   # Note: You must manually copy the tunnel credentials JSON to:
   # /home/deploy/.cloudflared/credentials.json
   # Then run: sudo systemctl enable --now cloudflared
+  # And deploy the app via CI or manually copy compose.yaml and .env
