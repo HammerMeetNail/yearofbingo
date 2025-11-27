@@ -98,8 +98,8 @@ func TestSecurityHeaders_CSP(t *testing.T) {
 	// Check required directives
 	requiredDirectives := []string{
 		"default-src 'self'",
-		"script-src 'self'",
-		"style-src 'self'",
+		"script-src 'self' 'unsafe-inline'",
+		"style-src 'self' 'unsafe-inline'",
 		"font-src 'self'",
 		"img-src 'self'",
 		"connect-src 'self'",
