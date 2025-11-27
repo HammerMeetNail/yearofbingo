@@ -1008,7 +1008,7 @@ const App = {
     try {
       const response = await API.cards.finalize(this.currentCard.id);
       this.currentCard = response.card;
-      this.renderFinalizedCard(document.querySelector('.container'));
+      this.renderFinalizedCard(document.getElementById('main-container'));
       this.toast('Card finalized! Good luck with your goals! 🎉', 'success');
       this.confetti(50);
     } catch (error) {
