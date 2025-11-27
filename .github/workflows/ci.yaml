@@ -249,10 +249,10 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
 
           # Copy compose file to server
-          scp -o StrictHostKeyChecking=accept-new compose.server.yaml deploy@"[$SERVER_HOST]":/opt/yearofbingo/compose.yaml
+          scp -o StrictHostKeyChecking=accept-new compose.server.yaml deploy@"$SERVER_HOST":/opt/yearofbingo/compose.yaml
 
           # Deploy
-          ssh -o StrictHostKeyChecking=accept-new deploy@"[$SERVER_HOST]" << EOF
+          ssh -o StrictHostKeyChecking=accept-new deploy@"$SERVER_HOST" << EOF
             cd /opt/yearofbingo
 
             # Create/update .env file with secrets
