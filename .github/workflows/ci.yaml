@@ -237,10 +237,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install cloudflared
+        run: |
+          curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+          chmod +x cloudflared
+          sudo mv cloudflared /usr/local/bin/
+
       - name: Deploy to server
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
         run: |
@@ -248,11 +253,19 @@ jobs:
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
 
-          # Copy compose file to server
-          scp -o StrictHostKeyChecking=accept-new compose.server.yaml deploy@"$SERVER_HOST":/opt/yearofbingo/compose.yaml
+          # Configure SSH to use Cloudflare Tunnel
+          cat >> ~/.ssh/config << 'SSHCONFIG'
+          Host ssh.yearofbingo.com
+            User deploy
+            ProxyCommand cloudflared access ssh --hostname %h
+            StrictHostKeyChecking accept-new
+          SSHCONFIG
 
-          # Deploy
-          ssh -o StrictHostKeyChecking=accept-new deploy@"$SERVER_HOST" << EOF
+          # Copy compose file to server via tunnel
+          scp compose.server.yaml ssh.yearofbingo.com:/opt/yearofbingo/compose.yaml
+
+          # Deploy via tunnel
+          ssh ssh.yearofbingo.com << EOF
             cd /opt/yearofbingo
 
             # Create/update .env file with secrets

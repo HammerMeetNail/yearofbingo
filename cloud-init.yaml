@@ -1,0 +1,100 @@
+#cloud-config
+package_update: true
+package_upgrade: true
+
+packages:
+  - podman-compose
+  - git
+
+users:
+  - name: deploy
+    groups: [wheel]
+    sudo: ["ALL=(ALL) NOPASSWD:ALL"]
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ssh-ed25519 AAAA... # CI deploy key (from ~/.ssh/hetzner_yearofbingo_ci.pub)
+
+ssh_pwauth: false
+disable_root: true
+
+mounts:
+  - [/dev/sdb, /mnt/data, ext4, "defaults,nofail", "0", "2"]
+
+write_files:
+  # Allow unprivileged ports from 80
+  - path: /etc/sysctl.d/99-unprivileged-ports.conf
+    content: |
+      net.ipv4.ip_unprivileged_port_start=80
+
+  # Cloudflare tunnel service
+  - path: /etc/systemd/system/cloudflared.service
+    content: |
+      [Unit]
+      Description=Cloudflare Tunnel
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=simple
+      User=deploy
+      ExecStart=/usr/local/bin/cloudflared tunnel run yearofbingo
+      Restart=always
+      RestartSec=5
+
+      [Install]
+      WantedBy=multi-user.target
+
+  # Cloudflare tunnel config
+  - path: /home/deploy/.cloudflared/config.yml
+    owner: deploy:deploy
+    permissions: "0600"
+    content: |
+      tunnel: yearofbingo
+      credentials-file: /home/deploy/.cloudflared/credentials.json
+
+      ingress:
+        - hostname: yearofbingo.com
+          service: http://localhost:80
+        - hostname: ssh.yearofbingo.com
+          service: ssh://localhost:22
+        - service: http_status:404
+
+runcmd:
+  # Format volume if not already formatted
+  - |
+    if ! blkid /dev/sdb; then
+      mkfs.ext4 /dev/sdb
+    fi
+  - mount -a
+
+  # Create data directories
+  - mkdir -p /mnt/data/postgres /mnt/data/redis
+  - chown -R deploy:deploy /mnt/data
+  - chmod 700 /mnt/data/postgres /mnt/data/redis
+
+  # Apply sysctl settings
+  - sysctl -p /etc/sysctl.d/99-unprivileged-ports.conf
+
+  # Enable lingering for rootless podman
+  - loginctl enable-linger deploy
+
+  # Firewall (HTTP/HTTPS for direct access, can be removed if tunnel-only)
+  - firewall-cmd --permanent --add-service=http
+  - firewall-cmd --permanent --add-service=https
+  - firewall-cmd --reload
+
+  # Create app directory
+  - mkdir -p /opt/yearofbingo
+  - chown deploy:deploy /opt/yearofbingo
+
+  # Install cloudflared
+  - curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared
+  - chmod +x /usr/local/bin/cloudflared
+
+  # Create .cloudflared directory
+  - mkdir -p /home/deploy/.cloudflared
+  - chown -R deploy:deploy /home/deploy/.cloudflared
+
+  # Note: You must manually copy the tunnel credentials JSON to:
+  # /home/deploy/.cloudflared/credentials.json
+  # Then run: sudo systemctl enable --now cloudflared
