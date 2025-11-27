@@ -1,0 +1,58 @@
+package models
+
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
+
+const (
+	GridSize        = 5
+	TotalSquares    = GridSize * GridSize // 25
+	FreeSpacePos    = 12                  // Center position (0-indexed)
+	ItemsRequired   = TotalSquares - 1    // 24 items (excluding free space)
+)
+
+type BingoCard struct {
+	ID          uuid.UUID   `json:"id"`
+	UserID      uuid.UUID   `json:"user_id"`
+	Year        int         `json:"year"`
+	IsActive    bool        `json:"is_active"`
+	IsFinalized bool        `json:"is_finalized"`
+	CreatedAt   time.Time   `json:"created_at"`
+	UpdatedAt   time.Time   `json:"updated_at"`
+	Items       []BingoItem `json:"items,omitempty"`
+}
+
+type BingoItem struct {
+	ID          uuid.UUID  `json:"id"`
+	CardID      uuid.UUID  `json:"card_id"`
+	Position    int        `json:"position"`
+	Content     string     `json:"content"`
+	IsCompleted bool       `json:"is_completed"`
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
+	Notes       *string    `json:"notes,omitempty"`
+	ProofURL    *string    `json:"proof_url,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+}
+
+type CreateCardParams struct {
+	UserID uuid.UUID
+	Year   int
+}
+
+type AddItemParams struct {
+	CardID   uuid.UUID
+	Content  string
+	Position *int // Optional; if nil, assign randomly
+}
+
+type UpdateItemParams struct {
+	Content  *string
+	Position *int
+}
+
+type CompleteItemParams struct {
+	Notes    *string
+	ProofURL *string
+}

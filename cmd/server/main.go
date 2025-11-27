@@ -66,10 +66,14 @@ func run() error {
 	// Initialize services
 	userService := services.NewUserService(db.Pool)
 	authService := services.NewAuthService(db.Pool, redisDB.Client)
+	cardService := services.NewCardService(db.Pool)
+	suggestionService := services.NewSuggestionService(db.Pool)
 
 	// Initialize handlers
 	healthHandler := handlers.NewHealthHandler(db, redisDB)
 	authHandler := handlers.NewAuthHandler(userService, authService, cfg.Server.Secure)
+	cardHandler := handlers.NewCardHandler(cardService)
+	suggestionHandler := handlers.NewSuggestionHandler(suggestionService)
 
 	// Initialize middleware
 	authMiddleware := middleware.NewAuthMiddleware(authService)
@@ -94,6 +98,23 @@ func run() error {
 	mux.HandleFunc("POST /api/auth/logout", authHandler.Logout)
 	mux.HandleFunc("GET /api/auth/me", authHandler.Me)
 	mux.HandleFunc("POST /api/auth/password", authHandler.ChangePassword)
+
+	// Card endpoints
+	mux.HandleFunc("POST /api/cards", cardHandler.Create)
+	mux.HandleFunc("GET /api/cards", cardHandler.List)
+	mux.HandleFunc("GET /api/cards/{id}", cardHandler.Get)
+	mux.HandleFunc("POST /api/cards/{id}/items", cardHandler.AddItem)
+	mux.HandleFunc("PUT /api/cards/{id}/items/{pos}", cardHandler.UpdateItem)
+	mux.HandleFunc("DELETE /api/cards/{id}/items/{pos}", cardHandler.RemoveItem)
+	mux.HandleFunc("POST /api/cards/{id}/shuffle", cardHandler.Shuffle)
+	mux.HandleFunc("POST /api/cards/{id}/finalize", cardHandler.Finalize)
+	mux.HandleFunc("PUT /api/cards/{id}/items/{pos}/complete", cardHandler.CompleteItem)
+	mux.HandleFunc("PUT /api/cards/{id}/items/{pos}/uncomplete", cardHandler.UncompleteItem)
+	mux.HandleFunc("PUT /api/cards/{id}/items/{pos}/notes", cardHandler.UpdateNotes)
+
+	// Suggestion endpoints
+	mux.HandleFunc("GET /api/suggestions", suggestionHandler.GetAll)
+	mux.HandleFunc("GET /api/suggestions/categories", suggestionHandler.GetCategories)
 
 	// Static files
 	fs := http.FileServer(http.Dir("web/static"))

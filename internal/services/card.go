@@ -1,0 +1,553 @@
+package services
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"math/rand"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/HammerMeetNail/nye_bingo/internal/models"
+)
+
+var (
+	ErrCardNotFound      = errors.New("card not found")
+	ErrCardAlreadyExists = errors.New("card already exists for this year")
+	ErrCardFinalized     = errors.New("card is finalized and cannot be modified")
+	ErrCardNotFinalized  = errors.New("card must be finalized first")
+	ErrCardFull          = errors.New("card already has 24 items")
+	ErrItemNotFound      = errors.New("item not found")
+	ErrPositionOccupied  = errors.New("position is already occupied")
+	ErrInvalidPosition   = errors.New("invalid position")
+	ErrNotCardOwner      = errors.New("you do not own this card")
+)
+
+type CardService struct {
+	db *pgxpool.Pool
+}
+
+func NewCardService(db *pgxpool.Pool) *CardService {
+	return &CardService{db: db}
+}
+
+func (s *CardService) Create(ctx context.Context, params models.CreateCardParams) (*models.BingoCard, error) {
+	// Check if card already exists for this year
+	var exists bool
+	err := s.db.QueryRow(ctx,
+		"SELECT EXISTS(SELECT 1 FROM bingo_cards WHERE user_id = $1 AND year = $2)",
+		params.UserID, params.Year,
+	).Scan(&exists)
+	if err != nil {
+		return nil, fmt.Errorf("checking card existence: %w", err)
+	}
+	if exists {
+		return nil, ErrCardAlreadyExists
+	}
+
+	card := &models.BingoCard{}
+	err = s.db.QueryRow(ctx,
+		`INSERT INTO bingo_cards (user_id, year)
+		 VALUES ($1, $2)
+		 RETURNING id, user_id, year, is_active, is_finalized, created_at, updated_at`,
+		params.UserID, params.Year,
+	).Scan(&card.ID, &card.UserID, &card.Year, &card.IsActive, &card.IsFinalized, &card.CreatedAt, &card.UpdatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("creating card: %w", err)
+	}
+
+	card.Items = []models.BingoItem{}
+	return card, nil
+}
+
+func (s *CardService) GetByID(ctx context.Context, cardID uuid.UUID) (*models.BingoCard, error) {
+	card := &models.BingoCard{}
+	err := s.db.QueryRow(ctx,
+		`SELECT id, user_id, year, is_active, is_finalized, created_at, updated_at
+		 FROM bingo_cards WHERE id = $1`,
+		cardID,
+	).Scan(&card.ID, &card.UserID, &card.Year, &card.IsActive, &card.IsFinalized, &card.CreatedAt, &card.UpdatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrCardNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("getting card: %w", err)
+	}
+
+	items, err := s.getCardItems(ctx, cardID)
+	if err != nil {
+		return nil, err
+	}
+	card.Items = items
+
+	return card, nil
+}
+
+func (s *CardService) GetByUserAndYear(ctx context.Context, userID uuid.UUID, year int) (*models.BingoCard, error) {
+	card := &models.BingoCard{}
+	err := s.db.QueryRow(ctx,
+		`SELECT id, user_id, year, is_active, is_finalized, created_at, updated_at
+		 FROM bingo_cards WHERE user_id = $1 AND year = $2`,
+		userID, year,
+	).Scan(&card.ID, &card.UserID, &card.Year, &card.IsActive, &card.IsFinalized, &card.CreatedAt, &card.UpdatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrCardNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("getting card: %w", err)
+	}
+
+	items, err := s.getCardItems(ctx, card.ID)
+	if err != nil {
+		return nil, err
+	}
+	card.Items = items
+
+	return card, nil
+}
+
+func (s *CardService) ListByUser(ctx context.Context, userID uuid.UUID) ([]*models.BingoCard, error) {
+	rows, err := s.db.Query(ctx,
+		`SELECT id, user_id, year, is_active, is_finalized, created_at, updated_at
+		 FROM bingo_cards WHERE user_id = $1 ORDER BY year DESC`,
+		userID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("listing cards: %w", err)
+	}
+	defer rows.Close()
+
+	var cards []*models.BingoCard
+	for rows.Next() {
+		card := &models.BingoCard{}
+		if err := rows.Scan(&card.ID, &card.UserID, &card.Year, &card.IsActive, &card.IsFinalized, &card.CreatedAt, &card.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scanning card: %w", err)
+		}
+		cards = append(cards, card)
+	}
+
+	// Load items for each card
+	for _, card := range cards {
+		items, err := s.getCardItems(ctx, card.ID)
+		if err != nil {
+			return nil, err
+		}
+		card.Items = items
+	}
+
+	return cards, nil
+}
+
+func (s *CardService) AddItem(ctx context.Context, userID uuid.UUID, params models.AddItemParams) (*models.BingoItem, error) {
+	// Get and verify card ownership
+	card, err := s.GetByID(ctx, params.CardID)
+	if err != nil {
+		return nil, err
+	}
+	if card.UserID != userID {
+		return nil, ErrNotCardOwner
+	}
+	if card.IsFinalized {
+		return nil, ErrCardFinalized
+	}
+
+	// Check item count
+	if len(card.Items) >= models.ItemsRequired {
+		return nil, ErrCardFull
+	}
+
+	// Determine position
+	var position int
+	if params.Position != nil {
+		position = *params.Position
+		if position < 0 || position >= models.TotalSquares || position == models.FreeSpacePos {
+			return nil, ErrInvalidPosition
+		}
+		// Check if position is occupied
+		for _, item := range card.Items {
+			if item.Position == position {
+				return nil, ErrPositionOccupied
+			}
+		}
+	} else {
+		// Find random available position
+		position, err = s.findRandomPosition(card.Items)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	item := &models.BingoItem{}
+	err = s.db.QueryRow(ctx,
+		`INSERT INTO bingo_items (card_id, position, content)
+		 VALUES ($1, $2, $3)
+		 RETURNING id, card_id, position, content, is_completed, completed_at, notes, proof_url, created_at`,
+		params.CardID, position, params.Content,
+	).Scan(&item.ID, &item.CardID, &item.Position, &item.Content, &item.IsCompleted, &item.CompletedAt, &item.Notes, &item.ProofURL, &item.CreatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("adding item: %w", err)
+	}
+
+	return item, nil
+}
+
+func (s *CardService) UpdateItem(ctx context.Context, userID, cardID uuid.UUID, position int, params models.UpdateItemParams) (*models.BingoItem, error) {
+	// Get and verify card ownership
+	card, err := s.GetByID(ctx, cardID)
+	if err != nil {
+		return nil, err
+	}
+	if card.UserID != userID {
+		return nil, ErrNotCardOwner
+	}
+	if card.IsFinalized {
+		return nil, ErrCardFinalized
+	}
+
+	// Find the item
+	var item *models.BingoItem
+	for _, i := range card.Items {
+		if i.Position == position {
+			item = &i
+			break
+		}
+	}
+	if item == nil {
+		return nil, ErrItemNotFound
+	}
+
+	// Update content if provided
+	if params.Content != nil {
+		_, err = s.db.Exec(ctx,
+			"UPDATE bingo_items SET content = $1 WHERE id = $2",
+			*params.Content, item.ID,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("updating item content: %w", err)
+		}
+		item.Content = *params.Content
+	}
+
+	// Update position if provided
+	if params.Position != nil {
+		newPos := *params.Position
+		if newPos < 0 || newPos >= models.TotalSquares || newPos == models.FreeSpacePos {
+			return nil, ErrInvalidPosition
+		}
+		// Check if new position is occupied
+		for _, i := range card.Items {
+			if i.Position == newPos && i.ID != item.ID {
+				return nil, ErrPositionOccupied
+			}
+		}
+		_, err = s.db.Exec(ctx,
+			"UPDATE bingo_items SET position = $1 WHERE id = $2",
+			newPos, item.ID,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("updating item position: %w", err)
+		}
+		item.Position = newPos
+	}
+
+	return item, nil
+}
+
+func (s *CardService) RemoveItem(ctx context.Context, userID, cardID uuid.UUID, position int) error {
+	// Get and verify card ownership
+	card, err := s.GetByID(ctx, cardID)
+	if err != nil {
+		return err
+	}
+	if card.UserID != userID {
+		return ErrNotCardOwner
+	}
+	if card.IsFinalized {
+		return ErrCardFinalized
+	}
+
+	result, err := s.db.Exec(ctx,
+		"DELETE FROM bingo_items WHERE card_id = $1 AND position = $2",
+		cardID, position,
+	)
+	if err != nil {
+		return fmt.Errorf("removing item: %w", err)
+	}
+	if result.RowsAffected() == 0 {
+		return ErrItemNotFound
+	}
+
+	return nil
+}
+
+func (s *CardService) Shuffle(ctx context.Context, userID, cardID uuid.UUID) (*models.BingoCard, error) {
+	// Get and verify card ownership
+	card, err := s.GetByID(ctx, cardID)
+	if err != nil {
+		return nil, err
+	}
+	if card.UserID != userID {
+		return nil, ErrNotCardOwner
+	}
+	if card.IsFinalized {
+		return nil, ErrCardFinalized
+	}
+
+	if len(card.Items) == 0 {
+		return card, nil
+	}
+
+	// Get all available positions (excluding free space)
+	availablePositions := make([]int, 0, models.ItemsRequired)
+	for i := 0; i < models.TotalSquares; i++ {
+		if i != models.FreeSpacePos {
+			availablePositions = append(availablePositions, i)
+		}
+	}
+
+	// Shuffle positions
+	rand.Shuffle(len(availablePositions), func(i, j int) {
+		availablePositions[i], availablePositions[j] = availablePositions[j], availablePositions[i]
+	})
+
+	// Update items with new positions
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("beginning transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// First, set all positions to negative to avoid unique constraint violations
+	for i, item := range card.Items {
+		_, err = tx.Exec(ctx,
+			"UPDATE bingo_items SET position = $1 WHERE id = $2",
+			-(i + 1), item.ID,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("clearing position: %w", err)
+		}
+	}
+
+	// Then assign new positions
+	for i, item := range card.Items {
+		_, err = tx.Exec(ctx,
+			"UPDATE bingo_items SET position = $1 WHERE id = $2",
+			availablePositions[i], item.ID,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("assigning new position: %w", err)
+		}
+	}
+
+	if err = tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("committing transaction: %w", err)
+	}
+
+	// Reload card with updated positions
+	return s.GetByID(ctx, cardID)
+}
+
+func (s *CardService) Finalize(ctx context.Context, userID, cardID uuid.UUID) (*models.BingoCard, error) {
+	// Get and verify card ownership
+	card, err := s.GetByID(ctx, cardID)
+	if err != nil {
+		return nil, err
+	}
+	if card.UserID != userID {
+		return nil, ErrNotCardOwner
+	}
+	if card.IsFinalized {
+		return card, nil // Already finalized
+	}
+
+	// Ensure card has all 24 items
+	if len(card.Items) < models.ItemsRequired {
+		return nil, fmt.Errorf("card needs %d items, has %d", models.ItemsRequired, len(card.Items))
+	}
+
+	_, err = s.db.Exec(ctx,
+		"UPDATE bingo_cards SET is_finalized = true WHERE id = $1",
+		cardID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("finalizing card: %w", err)
+	}
+
+	card.IsFinalized = true
+	return card, nil
+}
+
+func (s *CardService) CompleteItem(ctx context.Context, userID, cardID uuid.UUID, position int, params models.CompleteItemParams) (*models.BingoItem, error) {
+	// Get and verify card ownership
+	card, err := s.GetByID(ctx, cardID)
+	if err != nil {
+		return nil, err
+	}
+	if card.UserID != userID {
+		return nil, ErrNotCardOwner
+	}
+	if !card.IsFinalized {
+		return nil, ErrCardNotFinalized
+	}
+
+	// Find the item
+	var item *models.BingoItem
+	for _, i := range card.Items {
+		if i.Position == position {
+			itemCopy := i
+			item = &itemCopy
+			break
+		}
+	}
+	if item == nil {
+		return nil, ErrItemNotFound
+	}
+
+	now := time.Now()
+	_, err = s.db.Exec(ctx,
+		`UPDATE bingo_items
+		 SET is_completed = true, completed_at = $1, notes = $2, proof_url = $3
+		 WHERE id = $4`,
+		now, params.Notes, params.ProofURL, item.ID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("completing item: %w", err)
+	}
+
+	item.IsCompleted = true
+	item.CompletedAt = &now
+	item.Notes = params.Notes
+	item.ProofURL = params.ProofURL
+
+	return item, nil
+}
+
+func (s *CardService) UncompleteItem(ctx context.Context, userID, cardID uuid.UUID, position int) (*models.BingoItem, error) {
+	// Get and verify card ownership
+	card, err := s.GetByID(ctx, cardID)
+	if err != nil {
+		return nil, err
+	}
+	if card.UserID != userID {
+		return nil, ErrNotCardOwner
+	}
+	if !card.IsFinalized {
+		return nil, ErrCardNotFinalized
+	}
+
+	// Find the item
+	var item *models.BingoItem
+	for _, i := range card.Items {
+		if i.Position == position {
+			itemCopy := i
+			item = &itemCopy
+			break
+		}
+	}
+	if item == nil {
+		return nil, ErrItemNotFound
+	}
+
+	_, err = s.db.Exec(ctx,
+		`UPDATE bingo_items
+		 SET is_completed = false, completed_at = NULL
+		 WHERE id = $1`,
+		item.ID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("uncompleting item: %w", err)
+	}
+
+	item.IsCompleted = false
+	item.CompletedAt = nil
+
+	return item, nil
+}
+
+func (s *CardService) UpdateItemNotes(ctx context.Context, userID, cardID uuid.UUID, position int, notes, proofURL *string) (*models.BingoItem, error) {
+	// Get and verify card ownership
+	card, err := s.GetByID(ctx, cardID)
+	if err != nil {
+		return nil, err
+	}
+	if card.UserID != userID {
+		return nil, ErrNotCardOwner
+	}
+
+	// Find the item
+	var item *models.BingoItem
+	for _, i := range card.Items {
+		if i.Position == position {
+			itemCopy := i
+			item = &itemCopy
+			break
+		}
+	}
+	if item == nil {
+		return nil, ErrItemNotFound
+	}
+
+	_, err = s.db.Exec(ctx,
+		"UPDATE bingo_items SET notes = $1, proof_url = $2 WHERE id = $3",
+		notes, proofURL, item.ID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("updating notes: %w", err)
+	}
+
+	item.Notes = notes
+	item.ProofURL = proofURL
+
+	return item, nil
+}
+
+func (s *CardService) getCardItems(ctx context.Context, cardID uuid.UUID) ([]models.BingoItem, error) {
+	rows, err := s.db.Query(ctx,
+		`SELECT id, card_id, position, content, is_completed, completed_at, notes, proof_url, created_at
+		 FROM bingo_items WHERE card_id = $1 ORDER BY position`,
+		cardID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("getting card items: %w", err)
+	}
+	defer rows.Close()
+
+	var items []models.BingoItem
+	for rows.Next() {
+		var item models.BingoItem
+		if err := rows.Scan(&item.ID, &item.CardID, &item.Position, &item.Content, &item.IsCompleted, &item.CompletedAt, &item.Notes, &item.ProofURL, &item.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scanning item: %w", err)
+		}
+		items = append(items, item)
+	}
+
+	if items == nil {
+		items = []models.BingoItem{}
+	}
+
+	return items, nil
+}
+
+func (s *CardService) findRandomPosition(existingItems []models.BingoItem) (int, error) {
+	occupied := make(map[int]bool)
+	occupied[models.FreeSpacePos] = true
+	for _, item := range existingItems {
+		occupied[item.Position] = true
+	}
+
+	available := make([]int, 0)
+	for i := 0; i < models.TotalSquares; i++ {
+		if !occupied[i] {
+			available = append(available, i)
+		}
+	}
+
+	if len(available) == 0 {
+		return 0, ErrCardFull
+	}
+
+	return available[rand.Intn(len(available))], nil
+}
