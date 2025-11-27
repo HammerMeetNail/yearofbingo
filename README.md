@@ -14,7 +14,7 @@ A web application for creating and tracking New Year's Resolution Bingo cards. C
 
 ## Tech Stack
 
-- **Backend**: Go 1.23+ with net/http (no frameworks)
+- **Backend**: Go 1.24+ with net/http (no frameworks)
 - **Frontend**: Vanilla JavaScript SPA with hash-based routing
 - **Database**: PostgreSQL 15+
 - **Cache/Sessions**: Redis 7+
@@ -49,7 +49,7 @@ The application will be available at http://localhost:8080
 # Rebuild after code changes
 podman compose build --no-cache && podman compose up
 
-# Run Go build locally (requires Go 1.23+)
+# Run Go build locally (requires Go 1.24+)
 go build -o server ./cmd/server
 
 # Download dependencies
@@ -257,6 +257,38 @@ When adding new scripts to this directory:
 5. Log to stderr (`>&2`) so function return values aren't polluted
 6. Handle "already exists" cases gracefully for idempotency
 
+## CI/CD
+
+The project uses GitHub Actions for continuous integration and deployment.
+
+### Pipeline Stages
+
+1. **Lint** - Code quality checks with golangci-lint
+2. **Test (Go)** - Unit tests with race detection and coverage
+3. **Test (JS)** - Frontend JavaScript tests
+4. **Build** - Compile Go binary
+5. **Build & Scan Image** - Build container, run Trivy security scan
+6. **Push** - Push to container registry (only after scan passes)
+
+### Container Images
+
+Images are published to [quay.io/nye-bingo/nye-bingo](https://quay.io/repository/nye-bingo/nye-bingo):
+- `quay.io/nye-bingo/nye-bingo:latest` - Latest main branch build
+- `quay.io/nye-bingo/nye-bingo:<sha>` - Specific commit builds
+
+### Running CI Locally
+
+```bash
+# Run linting (requires golangci-lint)
+golangci-lint run
+
+# Run all tests
+./scripts/test.sh
+
+# Build container image
+podman build -f Containerfile -t nye-bingo .
+```
+
 ## Security & Performance
 
 - **Security Headers**: CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
@@ -275,4 +307,4 @@ When adding new scripts to this directory:
 
 ## License
 
-MIT
+Apache License 2.0 - see [LICENSE](LICENSE) for details.

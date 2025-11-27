@@ -515,11 +515,11 @@ node web/static/js/tests/runner.js
 ### 9.1 Container Setup
 ```dockerfile
 # Multi-stage build
-FROM golang:1.22-alpine AS builder
+FROM golang:1.24-alpine AS builder
 # ... build steps
 
 FROM alpine:3.19
-# ... minimal runtime
+# ... minimal runtime (non-root user, health checks)
 ```
 
 ### 9.2 Local Development
@@ -529,12 +529,13 @@ FROM alpine:3.19
 
 ### 9.3 CI Pipeline (GitHub Actions)
 ```yaml
-- Lint (golangci-lint, eslint)
-- Test (go test ./... with coverage report)
-- Test (node web/static/js/tests/runner.js)
-- Build container image
-- Push to quay.io
-- Security scan (trivy)
+- Lint (golangci-lint)
+- Test Go (go test -v -race -coverprofile=coverage.out ./...)
+- Test JS (node web/static/js/tests/runner.js)
+- Build binary
+- Build container image (local, no push)
+- Security scan (trivy) - fails on CRITICAL/HIGH
+- Push to quay.io (only after scan passes)
 ```
 
 ### 9.4 GitOps Deployment
@@ -543,10 +544,12 @@ FROM alpine:3.19
 - Environment-specific configs via Kustomize or envsubst
 
 ### 9.5 Deliverables
-- [ ] Production Containerfile (multi-stage)
-- [ ] compose.yaml for local development
-- [ ] GitHub Actions workflow for CI
-- [ ] Container image push to quay.io
+- [x] Production Containerfile (multi-stage, non-root user, health checks)
+- [x] compose.yaml for local development (with watch mode)
+- [x] GitHub Actions workflow for CI (.github/workflows/ci.yaml)
+- [x] Container image push to quay.io (quay.io/nye-bingo/nye-bingo)
+- [x] Security scanning with Trivy (before push, fails on CRITICAL/HIGH)
+- [x] golangci-lint configuration (.golangci.yaml)
 - [ ] Deployment manifests
 - [ ] Environment configuration management
 - [ ] Database migration in deployment pipeline

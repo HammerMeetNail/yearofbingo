@@ -166,7 +166,7 @@ Redis: `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_DB`
 
 ## Implementation Status
 
-Phases 1-8 complete:
+Phases 1-8.5 complete, Phase 9 in progress:
 - Phase 1: Foundation (Go project, PostgreSQL, Redis, migrations, Podman)
 - Phase 2: Authentication (register, login, sessions, CSRF)
 - Phase 3: Bingo Card API (create, items, shuffle, finalize, suggestions)
@@ -175,10 +175,39 @@ Phases 1-8 complete:
 - Phase 6: Social Features (friends, shared card view, reactions)
 - Phase 7: Archive & History (past years cards, completion statistics, bingo counts)
 - Phase 8: Polish & Production Readiness (security headers, compression, caching, logging, error pages, accessibility)
+- Phase 9: CI/CD (GitHub Actions, container builds, security scanning) - **in progress**
 
-**Next: Phase 9 (CI/CD & Deployment)** - Container builds, GitHub Actions, deployment manifests.
+**Next: Phase 9.4+ (Deployment)** - Deployment manifests, environment configuration.
 
 See `plans/bingo.md` for the full implementation plan.
+
+## CI/CD (Phase 9)
+
+GitHub Actions workflow in `.github/workflows/ci.yaml`:
+
+**Pipeline stages:**
+1. **Lint** - golangci-lint with config in `.golangci.yaml`
+2. **Test (Go)** - `go test -v -race -coverprofile=coverage.out ./...`
+3. **Test (JS)** - `node web/static/js/tests/runner.js`
+4. **Build** - Compile binary, upload as artifact
+5. **Build & Scan Image** - Build container, Trivy security scan (fails on CRITICAL/HIGH)
+6. **Push** - Push to quay.io only after scan passes
+
+**Container registry:** `quay.io/nye-bingo/nye-bingo`
+- `:latest` - Latest main branch build
+- `:<sha>` - Specific commit builds
+
+**Local CI commands:**
+```bash
+# Run linting
+golangci-lint run
+
+# Run all tests in container
+./scripts/test.sh
+
+# Build container
+podman build -f Containerfile -t nye-bingo .
+```
 
 ## Security Features (Phase 8)
 
