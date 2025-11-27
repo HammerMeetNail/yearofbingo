@@ -1,0 +1,296 @@
+package handlers
+
+import (
+	"encoding/json"
+	"errors"
+	"log"
+	"net/http"
+	"net/mail"
+	"strings"
+	"time"
+	"unicode"
+
+	"github.com/HammerMeetNail/nye_bingo/internal/models"
+	"github.com/HammerMeetNail/nye_bingo/internal/services"
+)
+
+const (
+	sessionCookieName = "session_token"
+	cookieMaxAge      = 30 * 24 * 60 * 60 // 30 days in seconds
+)
+
+type AuthHandler struct {
+	userService *services.UserService
+	authService *services.AuthService
+	secure      bool // Use secure cookies (HTTPS only)
+}
+
+func NewAuthHandler(userService *services.UserService, authService *services.AuthService, secure bool) *AuthHandler {
+	return &AuthHandler{
+		userService: userService,
+		authService: authService,
+		secure:      secure,
+	}
+}
+
+type RegisterRequest struct {
+	Email       string `json:"email"`
+	Password    string `json:"password"`
+	DisplayName string `json:"display_name"`
+}
+
+type LoginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type AuthResponse struct {
+	User    *models.User `json:"user"`
+	Message string       `json:"message,omitempty"`
+}
+
+type ErrorResponse struct {
+	Error string `json:"error"`
+}
+
+func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
+	var req RegisterRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	// Validate email
+	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+	if _, err := mail.ParseAddress(req.Email); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid email address")
+		return
+	}
+
+	// Validate password
+	if err := validatePassword(req.Password); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// Validate display name
+	req.DisplayName = strings.TrimSpace(req.DisplayName)
+	if len(req.DisplayName) < 2 || len(req.DisplayName) > 100 {
+		writeError(w, http.StatusBadRequest, "Display name must be between 2 and 100 characters")
+		return
+	}
+
+	// Hash password
+	passwordHash, err := h.authService.HashPassword(req.Password)
+	if err != nil {
+		log.Printf("Error hashing password: %v", err)
+		writeError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	// Create user
+	user, err := h.userService.Create(r.Context(), models.CreateUserParams{
+		Email:        req.Email,
+		PasswordHash: passwordHash,
+		DisplayName:  req.DisplayName,
+	})
+	if errors.Is(err, services.ErrEmailAlreadyExists) {
+		writeError(w, http.StatusConflict, "Email already registered")
+		return
+	}
+	if err != nil {
+		log.Printf("Error creating user: %v", err)
+		writeError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	// Create session
+	token, err := h.authService.CreateSession(r.Context(), user.ID)
+	if err != nil {
+		log.Printf("Error creating session: %v", err)
+		writeError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	h.setSessionCookie(w, token)
+	writeJSON(w, http.StatusCreated, AuthResponse{User: user})
+}
+
+func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
+	var req LoginRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+
+	// Get user by email
+	user, err := h.userService.GetByEmail(r.Context(), req.Email)
+	if errors.Is(err, services.ErrUserNotFound) {
+		writeError(w, http.StatusUnauthorized, "Invalid email or password")
+		return
+	}
+	if err != nil {
+		log.Printf("Error getting user: %v", err)
+		writeError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	// Verify password
+	if !h.authService.VerifyPassword(user.PasswordHash, req.Password) {
+		writeError(w, http.StatusUnauthorized, "Invalid email or password")
+		return
+	}
+
+	// Create session
+	token, err := h.authService.CreateSession(r.Context(), user.ID)
+	if err != nil {
+		log.Printf("Error creating session: %v", err)
+		writeError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	h.setSessionCookie(w, token)
+	writeJSON(w, http.StatusOK, AuthResponse{User: user})
+}
+
+func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie(sessionCookieName)
+	if err == nil && cookie.Value != "" {
+		h.authService.DeleteSession(r.Context(), cookie.Value)
+	}
+
+	h.clearSessionCookie(w)
+	writeJSON(w, http.StatusOK, AuthResponse{Message: "Logged out successfully"})
+}
+
+func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
+	user := GetUserFromContext(r.Context())
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "Not authenticated")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, AuthResponse{User: user})
+}
+
+func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
+	user := GetUserFromContext(r.Context())
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "Not authenticated")
+		return
+	}
+
+	var req struct {
+		CurrentPassword string `json:"current_password"`
+		NewPassword     string `json:"new_password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	// Verify current password
+	if !h.authService.VerifyPassword(user.PasswordHash, req.CurrentPassword) {
+		writeError(w, http.StatusUnauthorized, "Current password is incorrect")
+		return
+	}
+
+	// Validate new password
+	if err := validatePassword(req.NewPassword); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// Hash new password
+	newHash, err := h.authService.HashPassword(req.NewPassword)
+	if err != nil {
+		log.Printf("Error hashing password: %v", err)
+		writeError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	// Update password
+	if err := h.userService.UpdatePassword(r.Context(), user.ID, newHash); err != nil {
+		log.Printf("Error updating password: %v", err)
+		writeError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	// Invalidate all other sessions
+	h.authService.DeleteAllUserSessions(r.Context(), user.ID)
+
+	// Create new session
+	token, err := h.authService.CreateSession(r.Context(), user.ID)
+	if err != nil {
+		log.Printf("Error creating session: %v", err)
+		writeError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	h.setSessionCookie(w, token)
+	writeJSON(w, http.StatusOK, AuthResponse{Message: "Password changed successfully"})
+}
+
+func (h *AuthHandler) setSessionCookie(w http.ResponseWriter, token string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookieName,
+		Value:    token,
+		Path:     "/",
+		MaxAge:   cookieMaxAge,
+		HttpOnly: true,
+		Secure:   h.secure,
+		SameSite: http.SameSiteStrictMode,
+	})
+}
+
+func (h *AuthHandler) clearSessionCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookieName,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   h.secure,
+		SameSite: http.SameSiteStrictMode,
+		Expires:  time.Unix(0, 0),
+	})
+}
+
+func validatePassword(password string) error {
+	if len(password) < 8 {
+		return errors.New("password must be at least 8 characters")
+	}
+	if len(password) > 128 {
+		return errors.New("password must be at most 128 characters")
+	}
+
+	var hasUpper, hasLower, hasDigit bool
+	for _, c := range password {
+		switch {
+		case unicode.IsUpper(c):
+			hasUpper = true
+		case unicode.IsLower(c):
+			hasLower = true
+		case unicode.IsDigit(c):
+			hasDigit = true
+		}
+	}
+
+	if !hasUpper || !hasLower || !hasDigit {
+		return errors.New("password must contain at least one uppercase letter, one lowercase letter, and one digit")
+	}
+
+	return nil
+}
+
+func writeJSON(w http.ResponseWriter, status int, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(data)
+}
+
+func writeError(w http.ResponseWriter, status int, message string) {
+	writeJSON(w, status, ErrorResponse{Error: message})
+}

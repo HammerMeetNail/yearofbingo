@@ -13,8 +13,9 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Host string
-	Port int
+	Host   string
+	Port   int
+	Secure bool // Use HTTPS-only cookies
 }
 
 type DatabaseConfig struct {
@@ -47,8 +48,9 @@ func (r RedisConfig) Addr() string {
 func Load() (*Config, error) {
 	cfg := &Config{
 		Server: ServerConfig{
-			Host: getEnv("SERVER_HOST", "0.0.0.0"),
-			Port: getEnvInt("SERVER_PORT", 8080),
+			Host:   getEnv("SERVER_HOST", "0.0.0.0"),
+			Port:   getEnvInt("SERVER_PORT", 8080),
+			Secure: getEnvBool("SERVER_SECURE", false),
 		},
 		Database: DatabaseConfig{
 			Host:     getEnv("DB_HOST", "localhost"),
@@ -80,6 +82,15 @@ func getEnvInt(key string, defaultValue int) int {
 	if value, exists := os.LookupEnv(key); exists {
 		if intVal, err := strconv.Atoi(value); err == nil {
 			return intVal
+		}
+	}
+	return defaultValue
+}
+
+func getEnvBool(key string, defaultValue bool) bool {
+	if value, exists := os.LookupEnv(key); exists {
+		if boolVal, err := strconv.ParseBool(value); err == nil {
+			return boolVal
 		}
 	}
 	return defaultValue

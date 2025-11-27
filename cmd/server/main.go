@@ -13,6 +13,8 @@ import (
 	"github.com/HammerMeetNail/nye_bingo/internal/config"
 	"github.com/HammerMeetNail/nye_bingo/internal/database"
 	"github.com/HammerMeetNail/nye_bingo/internal/handlers"
+	"github.com/HammerMeetNail/nye_bingo/internal/middleware"
+	"github.com/HammerMeetNail/nye_bingo/internal/services"
 )
 
 func main() {
@@ -54,33 +56,60 @@ func run() error {
 
 	// Connect to Redis
 	log.Printf("Connecting to Redis at %s...", cfg.Redis.Addr())
-	redis, err := database.NewRedisDB(cfg.Redis.Addr(), cfg.Redis.Password, cfg.Redis.DB)
+	redisDB, err := database.NewRedisDB(cfg.Redis.Addr(), cfg.Redis.Password, cfg.Redis.DB)
 	if err != nil {
 		return fmt.Errorf("connecting to redis: %w", err)
 	}
-	defer redis.Close()
+	defer redisDB.Close()
 	log.Printf("Connected to Redis")
 
-	// Set up handlers
-	healthHandler := handlers.NewHealthHandler(db, redis)
+	// Initialize services
+	userService := services.NewUserService(db.Pool)
+	authService := services.NewAuthService(db.Pool, redisDB.Client)
+
+	// Initialize handlers
+	healthHandler := handlers.NewHealthHandler(db, redisDB)
+	authHandler := handlers.NewAuthHandler(userService, authService, cfg.Server.Secure)
+
+	// Initialize middleware
+	authMiddleware := middleware.NewAuthMiddleware(authService)
+	csrfMiddleware := middleware.NewCSRFMiddleware(cfg.Server.Secure)
+	authRateLimiter := middleware.NewAuthRateLimiter(redisDB.Client)
+	apiRateLimiter := middleware.NewAPIRateLimiter(redisDB.Client)
 
 	// Set up router
 	mux := http.NewServeMux()
 
-	// Health endpoints
+	// Health endpoints (no auth, no rate limit)
 	mux.HandleFunc("GET /health", healthHandler.Health)
 	mux.HandleFunc("GET /ready", healthHandler.Ready)
 	mux.HandleFunc("GET /live", healthHandler.Live)
+
+	// CSRF token endpoint
+	mux.HandleFunc("GET /api/csrf", csrfMiddleware.GetToken)
+
+	// Auth endpoints (rate limited)
+	mux.Handle("POST /api/auth/register", authRateLimiter.Limit(http.HandlerFunc(authHandler.Register)))
+	mux.Handle("POST /api/auth/login", authRateLimiter.Limit(http.HandlerFunc(authHandler.Login)))
+	mux.HandleFunc("POST /api/auth/logout", authHandler.Logout)
+	mux.HandleFunc("GET /api/auth/me", authHandler.Me)
+	mux.HandleFunc("POST /api/auth/password", authHandler.ChangePassword)
 
 	// Static files
 	fs := http.FileServer(http.Dir("web/static"))
 	mux.Handle("GET /static/", http.StripPrefix("/static/", fs))
 
+	// Build middleware chain
+	var handler http.Handler = mux
+	handler = authMiddleware.Authenticate(handler)
+	handler = csrfMiddleware.Protect(handler)
+	handler = apiRateLimiter.Limit(handler)
+
 	// Create server
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	server := &http.Server{
 		Addr:         addr,
-		Handler:      mux,
+		Handler:      handler,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
