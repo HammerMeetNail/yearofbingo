@@ -8,7 +8,7 @@ NYE Bingo is a web application for creating and tracking New Year's Resolution B
 
 ## Tech Stack
 
-- **Backend**: Go 1.23+ using only net/http (no frameworks)
+- **Backend**: Go 1.24+ using only net/http (no frameworks)
 - **Frontend**: Vanilla JavaScript SPA with hash-based routing
 - **Database**: PostgreSQL with pgx/v5 driver
 - **Cache/Sessions**: Redis with go-redis/v9
