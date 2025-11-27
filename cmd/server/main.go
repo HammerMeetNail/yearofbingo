@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -13,36 +12,44 @@ import (
 	"github.com/HammerMeetNail/nye_bingo/internal/config"
 	"github.com/HammerMeetNail/nye_bingo/internal/database"
 	"github.com/HammerMeetNail/nye_bingo/internal/handlers"
+	"github.com/HammerMeetNail/nye_bingo/internal/logging"
 	"github.com/HammerMeetNail/nye_bingo/internal/middleware"
 	"github.com/HammerMeetNail/nye_bingo/internal/services"
 )
 
 func main() {
 	if err := run(); err != nil {
-		log.Fatalf("Error: %v", err)
+		logging.Error("Application error", map[string]interface{}{"error": err.Error()})
+		os.Exit(1)
 	}
 }
 
 func run() error {
+	// Initialize logger
+	logger := logging.New()
+
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	log.Printf("Starting NYE Bingo server...")
+	logger.Info("Starting NYE Bingo server...")
 
 	// Connect to PostgreSQL
-	log.Printf("Connecting to PostgreSQL at %s:%d...", cfg.Database.Host, cfg.Database.Port)
+	logger.Info("Connecting to PostgreSQL", map[string]interface{}{
+		"host": cfg.Database.Host,
+		"port": cfg.Database.Port,
+	})
 	db, err := database.NewPostgresDB(cfg.Database.DSN())
 	if err != nil {
 		return fmt.Errorf("connecting to postgres: %w", err)
 	}
 	defer db.Close()
-	log.Printf("Connected to PostgreSQL")
+	logger.Info("Connected to PostgreSQL")
 
 	// Run migrations
-	log.Printf("Running database migrations...")
+	logger.Info("Running database migrations...")
 	migrator, err := database.NewMigrator(cfg.Database.DSN(), "migrations")
 	if err != nil {
 		return fmt.Errorf("creating migrator: %w", err)
@@ -52,16 +59,18 @@ func run() error {
 		return fmt.Errorf("running migrations: %w", err)
 	}
 	migrator.Close()
-	log.Printf("Migrations completed")
+	logger.Info("Migrations completed")
 
 	// Connect to Redis
-	log.Printf("Connecting to Redis at %s...", cfg.Redis.Addr())
+	logger.Info("Connecting to Redis", map[string]interface{}{
+		"addr": cfg.Redis.Addr(),
+	})
 	redisDB, err := database.NewRedisDB(cfg.Redis.Addr(), cfg.Redis.Password, cfg.Redis.DB)
 	if err != nil {
 		return fmt.Errorf("connecting to redis: %w", err)
 	}
 	defer redisDB.Close()
-	log.Printf("Connected to Redis")
+	logger.Info("Connected to Redis")
 
 	// Initialize services
 	userService := services.NewUserService(db.Pool)
@@ -86,6 +95,10 @@ func run() error {
 	// Initialize middleware
 	authMiddleware := middleware.NewAuthMiddleware(authService)
 	csrfMiddleware := middleware.NewCSRFMiddleware(cfg.Server.Secure)
+	securityHeaders := middleware.NewSecurityHeaders(cfg.Server.Secure)
+	cacheControl := middleware.NewCacheControl()
+	compress := middleware.NewCompress()
+	requestLogger := middleware.NewRequestLogger(logger)
 
 	// Set up router
 	mux := http.NewServeMux()
@@ -149,10 +162,14 @@ func run() error {
 	// Hash-based routing (#home, #login, etc.) is handled client-side
 	mux.HandleFunc("GET /{$}", pageHandler.Index)
 
-	// Build middleware chain
+	// Build middleware chain (order matters: outermost first)
 	var handler http.Handler = mux
 	handler = authMiddleware.Authenticate(handler)
 	handler = csrfMiddleware.Protect(handler)
+	handler = cacheControl.Apply(handler)
+	handler = compress.Apply(handler)
+	handler = securityHeaders.Apply(handler)
+	handler = requestLogger.Apply(handler)
 
 	// Create server
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
@@ -171,24 +188,28 @@ func run() error {
 
 	go func() {
 		<-quit
-		log.Println("Server is shutting down...")
+		logger.Info("Server is shutting down...")
 
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
 		server.SetKeepAlivesEnabled(false)
 		if err := server.Shutdown(ctx); err != nil {
-			log.Fatalf("Could not gracefully shutdown the server: %v\n", err)
+			logger.Error("Could not gracefully shutdown the server", map[string]interface{}{
+				"error": err.Error(),
+			})
 		}
 		close(done)
 	}()
 
-	log.Printf("Server listening on %s", addr)
+	logger.Info("Server listening", map[string]interface{}{
+		"addr": addr,
+	})
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("server error: %w", err)
 	}
 
 	<-done
-	log.Println("Server stopped")
+	logger.Info("Server stopped")
 	return nil
 }

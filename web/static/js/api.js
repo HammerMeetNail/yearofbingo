@@ -2,6 +2,8 @@
 
 const API = {
   csrfToken: null,
+  retryCount: 0,
+  maxRetries: 2,
 
   async init() {
     await this.fetchCSRFToken();
@@ -10,14 +12,23 @@ const API = {
   async fetchCSRFToken() {
     try {
       const response = await fetch('/api/csrf');
+      if (!response.ok) {
+        throw new Error('Failed to fetch CSRF token');
+      }
       const data = await response.json();
       this.csrfToken = data.token;
     } catch (error) {
       console.error('Failed to fetch CSRF token:', error);
+      // Retry once after a short delay
+      if (this.retryCount < 1) {
+        this.retryCount++;
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return this.fetchCSRFToken();
+      }
     }
   },
 
-  async request(method, path, body = null) {
+  async request(method, path, body = null, options = {}) {
     const headers = {
       'Content-Type': 'application/json',
     };
@@ -26,24 +37,70 @@ const API = {
       headers['X-CSRF-Token'] = this.csrfToken;
     }
 
-    const options = {
+    const fetchOptions = {
       method,
       headers,
       credentials: 'same-origin',
     };
 
     if (body && method !== 'GET') {
-      options.body = JSON.stringify(body);
+      fetchOptions.body = JSON.stringify(body);
     }
 
-    const response = await fetch(path, options);
-    const data = await response.json();
+    // Add timeout support
+    const timeout = options.timeout || 30000;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    fetchOptions.signal = controller.signal;
 
-    if (!response.ok) {
-      throw new APIError(data.error || 'Request failed', response.status);
+    try {
+      const response = await fetch(path, fetchOptions);
+      clearTimeout(timeoutId);
+
+      // Handle empty responses
+      const contentType = response.headers.get('content-type');
+      let data = null;
+      if (contentType && contentType.includes('application/json')) {
+        const text = await response.text();
+        data = text ? JSON.parse(text) : {};
+      }
+
+      if (!response.ok) {
+        // Handle specific status codes
+        if (response.status === 401) {
+          // Session expired - could trigger re-auth
+          throw new APIError('Session expired. Please log in again.', response.status);
+        }
+        if (response.status === 403) {
+          // CSRF token might be invalid - refresh and retry once
+          if (!options.retried) {
+            await this.fetchCSRFToken();
+            return this.request(method, path, body, { ...options, retried: true });
+          }
+          throw new APIError('Access denied. Please refresh the page.', response.status);
+        }
+        if (response.status >= 500) {
+          throw new APIError('Server error. Please try again later.', response.status);
+        }
+        throw new APIError(data?.error || 'Request failed', response.status);
+      }
+
+      return data;
+    } catch (error) {
+      clearTimeout(timeoutId);
+
+      if (error.name === 'AbortError') {
+        throw new APIError('Request timed out. Please check your connection.', 0);
+      }
+      if (error instanceof APIError) {
+        throw error;
+      }
+      // Network error
+      if (!navigator.onLine) {
+        throw new APIError('No internet connection. Please check your network.', 0);
+      }
+      throw new APIError('Connection error. Please try again.', 0);
     }
-
-    return data;
   },
 
   // Auth endpoints

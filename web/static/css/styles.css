@@ -23,8 +23,8 @@
   --color-warning: #f59e0b;
 
   --color-text-primary: #ffffff;
-  --color-text-secondary: #a0a0b0;
-  --color-text-muted: #6b6b80;
+  --color-text-secondary: #b0b0c0;
+  --color-text-muted: #8080a0;
 
   /* Typography */
   --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -75,6 +75,51 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+}
+
+/* Skip Link for Accessibility */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--color-gold);
+  color: var(--color-bg-primary);
+  padding: var(--spacing-sm) var(--spacing-md);
+  z-index: 9999;
+  font-weight: 600;
+  text-decoration: none;
+  transition: top var(--transition-fast);
+}
+
+.skip-link:focus {
+  top: 0;
+}
+
+/* Focus Styles for Accessibility */
+*:focus {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 2px;
+}
+
+*:focus:not(:focus-visible) {
+  outline: none;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 2px;
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 html {
@@ -920,8 +965,36 @@ a:hover {
   animation: spin 0.8s linear infinite;
 }
 
+.spinner--small {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: var(--spacing-xs);
+}
+
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* Loading State */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-2xl);
+  text-align: center;
+}
+
+.loading-state .spinner {
+  margin-bottom: var(--spacing-md);
+}
+
+.loading-message {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
 }
 
 /* Modal */
@@ -1416,5 +1489,52 @@ a:hover {
 
   .year-selector {
     order: 2;
+  }
+}
+
+/* Error Pages */
+.error-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 200px);
+  text-align: center;
+  padding: var(--spacing-xl);
+}
+
+.error-icon {
+  font-family: var(--font-family-display);
+  font-size: 8rem;
+  font-weight: 700;
+  color: var(--color-gold);
+  text-shadow: 0 0 40px rgba(255, 215, 0, 0.3);
+  margin-bottom: var(--spacing-lg);
+  line-height: 1;
+}
+
+.error-title {
+  font-size: var(--font-size-3xl);
+  margin-bottom: var(--spacing-md);
+}
+
+.error-message {
+  font-size: var(--font-size-lg);
+  color: var(--color-text-secondary);
+  max-width: 400px;
+  margin-bottom: var(--spacing-xl);
+}
+
+@media (max-width: 768px) {
+  .error-icon {
+    font-size: 5rem;
+  }
+
+  .error-title {
+    font-size: var(--font-size-2xl);
+  }
+
+  .error-message {
+    font-size: var(--font-size-base);
   }
 }

@@ -6,13 +6,59 @@ const App = {
   suggestions: [],
   usedSuggestions: new Set(),
   allowedEmojis: ['🎉', '👏', '🔥', '❤️', '⭐'],
+  isLoading: false,
 
   async init() {
     await API.init();
     await this.checkAuth();
     this.setupNavigation();
     this.setupModal();
+    this.setupOfflineDetection();
     this.route();
+  },
+
+  // Loading state management
+  showLoading(container, message = 'Loading...') {
+    this.isLoading = true;
+    if (container) {
+      container.innerHTML = `
+        <div class="loading-state" role="status" aria-live="polite">
+          <div class="spinner" aria-hidden="true"></div>
+          <p class="loading-message">${this.escapeHtml(message)}</p>
+        </div>
+      `;
+    }
+  },
+
+  hideLoading() {
+    this.isLoading = false;
+  },
+
+  // Show inline loading on a button
+  setButtonLoading(button, loading) {
+    if (loading) {
+      button.disabled = true;
+      button.dataset.originalText = button.textContent;
+      button.innerHTML = '<span class="spinner spinner--small" aria-hidden="true"></span> Loading...';
+    } else {
+      button.disabled = false;
+      if (button.dataset.originalText) {
+        button.textContent = button.dataset.originalText;
+        delete button.dataset.originalText;
+      }
+    }
+  },
+
+  // Offline detection
+  setupOfflineDetection() {
+    window.addEventListener('online', () => {
+      this.toast('Connection restored', 'success');
+      // Could trigger a data refresh here
+    });
+
+    window.addEventListener('offline', () => {
+      this.toast('You are offline. Some features may not work.', 'error');
+    });
   },
 
   async checkAuth() {

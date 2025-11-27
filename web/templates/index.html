@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="NYE Bingo - Create your New Year's Resolution Bingo card and track your goals throughout the year">
+  <meta name="theme-color" content="#0a0a1a">
   <title>NYE Bingo - New Year's Resolution Tracker</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,36 +14,39 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
 </head>
 <body>
+  <a href="#main-container" class="skip-link">Skip to main content</a>
+
   <div class="page">
-    <header class="header">
+    <header class="header" role="banner">
       <div class="container header-content">
-        <a href="#home" class="logo">
-          <span class="logo-icon">🎯</span>
+        <a href="#home" class="logo" aria-label="NYE Bingo home">
+          <span class="logo-icon" aria-hidden="true">🎯</span>
           <span>NYE Bingo</span>
         </a>
-        <nav class="nav" id="nav">
+        <nav class="nav" id="nav" role="navigation" aria-label="Main navigation">
           <!-- Populated by JS based on auth state -->
         </nav>
       </div>
     </header>
 
-    <main class="main-content">
+    <main class="main-content" role="main" id="main-content">
       <div class="container" id="main-container">
         <!-- Content rendered by JavaScript -->
-        <div class="text-center">
-          <div class="spinner" style="margin: 4rem auto;"></div>
+        <div class="loading-state" role="status" aria-live="polite">
+          <div class="spinner" aria-hidden="true"></div>
+          <p class="loading-message">Loading...</p>
         </div>
       </div>
     </main>
   </div>
 
-  <div class="toast-container" id="toast-container"></div>
+  <div class="toast-container" id="toast-container" role="alert" aria-live="assertive" aria-atomic="true"></div>
 
-  <div class="modal-overlay" id="modal-overlay">
+  <div class="modal-overlay" id="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="modal" id="modal">
       <div class="modal-header">
         <h3 class="modal-title" id="modal-title"></h3>
-        <button class="modal-close" id="modal-close">&times;</button>
+        <button class="modal-close" id="modal-close" aria-label="Close modal">&times;</button>
       </div>
       <div class="modal-body" id="modal-body"></div>
     </div>

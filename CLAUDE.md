@@ -39,6 +39,9 @@ go mod tidy
 # Test archive functionality
 ./scripts/test-archive.sh
 
+# Build minified assets for production
+./scripts/build-assets.sh
+
 # Full database reset
 podman compose down -v && podman compose up
 ```
@@ -53,7 +56,8 @@ podman compose down -v && podman compose up
 - `internal/models/` - Data structures (User, Session, BingoCard, BingoItem, Suggestion, Friendship, Reaction)
 - `internal/services/` - Business logic layer (UserService, AuthService, CardService, SuggestionService, FriendService, ReactionService)
 - `internal/handlers/` - HTTP handlers that call services and return JSON
-- `internal/middleware/` - Auth validation, CSRF protection
+- `internal/middleware/` - Auth validation, CSRF protection, security headers, compression, caching, request logging
+- `internal/logging/` - Structured JSON logging
 - `scripts/` - Development/testing scripts (seed.sh, cleanup.sh, test-archive.sh) - use API, not direct DB access
 
 ### Frontend Structure
@@ -79,7 +83,7 @@ podman compose down -v && podman compose up
 
 ### Key Patterns
 
-**Middleware Chain**: Requests flow through `csrfMiddleware → authMiddleware → handler`
+**Middleware Chain**: Requests flow through `requestLogger → securityHeaders → compress → cacheControl → csrfMiddleware → authMiddleware → handler`
 
 **Rate Limiting**: Not implemented at the application level. Rate limiting should be handled by upstream infrastructure (load balancer, API gateway, CDN) in production environments.
 
@@ -119,7 +123,7 @@ Redis: `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_DB`
 
 ## Implementation Status
 
-Phases 1-7 complete:
+Phases 1-8 complete:
 - Phase 1: Foundation (Go project, PostgreSQL, Redis, migrations, Podman)
 - Phase 2: Authentication (register, login, sessions, CSRF)
 - Phase 3: Bingo Card API (create, items, shuffle, finalize, suggestions)
@@ -127,7 +131,24 @@ Phases 1-7 complete:
 - Phase 5: Card Interaction (mark complete, notes, bingo detection)
 - Phase 6: Social Features (friends, shared card view, reactions)
 - Phase 7: Archive & History (past years cards, completion statistics, bingo counts)
+- Phase 8: Polish & Production Readiness (security headers, compression, caching, logging, error pages, accessibility)
 
-**Next: Phase 8 (Polish & Production Readiness)** - Performance, security, accessibility.
+**Next: Phase 9 (CI/CD & Deployment)** - Container builds, GitHub Actions, deployment manifests.
 
 See `plans/bingo.md` for the full implementation plan.
+
+## Security Features (Phase 8)
+
+- **Security Headers**: CSP, X-Frame-Options, X-Content-Type-Options, X-XSS-Protection, Referrer-Policy, Permissions-Policy, HSTS (in secure mode)
+- **Compression**: Gzip compression for responses (with pool for efficiency)
+- **Cache Control**: Proper cache headers for static assets and API responses
+- **Structured Logging**: JSON-formatted request logs with timing, status, and context
+
+## Accessibility (Phase 8)
+
+- Skip links for keyboard navigation
+- ARIA labels and roles on interactive elements
+- Focus visible styles for keyboard users
+- Reduced motion support for users who prefer it
+- Improved color contrast (WCAG 2.1 AA)
+- Screen reader friendly loading states and toasts

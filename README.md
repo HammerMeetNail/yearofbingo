@@ -65,7 +65,8 @@ nye_bingo/
 │   ├── config/          # Environment configuration
 │   ├── database/        # PostgreSQL and Redis clients
 │   ├── handlers/        # HTTP request handlers
-│   ├── middleware/      # Auth, CSRF protection
+│   ├── middleware/      # Auth, CSRF, security headers, compression, logging
+│   ├── logging/         # Structured JSON logging
 │   ├── models/          # Data structures
 │   └── services/        # Business logic
 ├── migrations/          # Database migrations
@@ -210,6 +211,20 @@ Tests the archive and statistics endpoints.
 
 **Note:** Archive only shows cards from past years. Cards created by `seed.sh` (2025) won't appear in archive until 2026.
 
+### build-assets.sh
+
+Minifies CSS and JavaScript files for production deployment.
+
+```bash
+./scripts/build-assets.sh
+```
+
+**Output:**
+- Creates minified files in `web/static/dist/`
+- Reports size reduction for each file (typically 8-20% reduction)
+
+**Note:** For production deployments, consider using proper minification tools like esbuild, terser, or csso for better compression.
+
 ### Adding New Scripts
 
 When adding new scripts to this directory:
@@ -219,6 +234,22 @@ When adding new scripts to this directory:
 4. Use the shared patterns: `get_csrf()`, `login_user()`, `logout_user()`
 5. Log to stderr (`>&2`) so function return values aren't polluted
 6. Handle "already exists" cases gracefully for idempotency
+
+## Security & Performance
+
+- **Security Headers**: CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
+- **HTTPS**: HSTS enabled when `SERVER_SECURE=true`
+- **Compression**: Gzip for text responses
+- **Caching**: Appropriate cache headers for static assets and API responses
+- **Logging**: Structured JSON request logs with timing and status
+
+## Accessibility
+
+- Skip links for keyboard navigation
+- ARIA labels on interactive elements
+- Focus visible styles for keyboard users
+- Reduced motion support (`prefers-reduced-motion`)
+- OpenDyslexic font for improved readability
 
 ## License
 
