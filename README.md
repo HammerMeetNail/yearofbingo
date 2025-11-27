@@ -1,5 +1,9 @@
 # NYE Bingo
 
+[![CI](https://github.com/HammerMeetNail/nye_bingo/actions/workflows/ci.yaml/badge.svg)](https://github.com/HammerMeetNail/nye_bingo/actions/workflows/ci.yaml)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/HammerMeetNail/nye_bingo)](https://go.dev/)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+
 A web application for creating and tracking New Year's Resolution Bingo cards. Create a 5x5 card with 24 personal goals, then mark items complete throughout the year as you achieve them.
 
 ## Features
