@@ -1,0 +1,68 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Containerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8080
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=bingo
+      - DB_PASSWORD=bingo_dev_password
+      - DB_NAME=nye_bingo
+      - DB_SSLMODE=disable
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=
+      - REDIS_DB=0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./web:/app/web:ro
+    develop:
+      watch:
+        - action: rebuild
+          path: .
+          ignore:
+            - web/
+        - action: sync
+          path: ./web
+          target: /app/web
+
+  postgres:
+    image: docker.io/library/postgres:16-alpine
+    environment:
+      - POSTGRES_USER=bingo
+      - POSTGRES_PASSWORD=bingo_dev_password
+      - POSTGRES_DB=nye_bingo
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bingo -d nye_bingo"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: docker.io/library/redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
