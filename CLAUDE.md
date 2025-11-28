@@ -20,6 +20,28 @@ Year of Bingo is a web application for creating and tracking annual Bingo cards.
 ## Development Commands
 
 ```bash
+# Full local rebuild (recommended)
+make local
+
+# View container logs
+make logs
+
+# Stop containers
+make down
+
+# Run linting
+make lint
+
+# Run all tests in container
+make test
+
+# Clean up everything including volumes
+make clean
+```
+
+### Manual Commands
+
+```bash
 # Start local development environment
 podman compose up
 

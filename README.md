@@ -52,6 +52,30 @@ The application will be available at http://localhost:8080
 
 ### Development
 
+A `Makefile` provides convenient commands for common tasks:
+
+```bash
+# Full local rebuild: stop, build assets, build container, start
+make local
+
+# View container logs
+make logs
+
+# Stop containers
+make down
+
+# Run linting (requires golangci-lint)
+make lint
+
+# Run all tests in container
+make test
+
+# Clean up everything including volumes (full reset)
+make clean
+```
+
+#### Manual Commands
+
 ```bash
 # Rebuild after code changes
 podman compose build --no-cache && podman compose up
