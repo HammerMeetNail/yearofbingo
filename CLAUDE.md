@@ -41,7 +41,7 @@ go mod tidy
 # Test archive functionality
 ./scripts/test-archive.sh
 
-# Build minified assets for production
+# Build content-hashed assets for production (cache busting)
 ./scripts/build-assets.sh
 
 # Full database reset
@@ -239,7 +239,7 @@ podman compose up
 
 - **Security Headers**: CSP, X-Frame-Options, X-Content-Type-Options, X-XSS-Protection, Referrer-Policy, Permissions-Policy, HSTS (in secure mode)
 - **Compression**: Gzip compression for responses (with pool for efficiency)
-- **Cache Control**: Proper cache headers for static assets and API responses
+- **Cache Control**: Content-hashed assets in `/static/dist/` get immutable cache (1 year); non-hashed assets use short cache with revalidation
 - **Structured Logging**: JSON-formatted request logs with timing, status, and context
 
 ## Accessibility (Phase 8)

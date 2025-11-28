@@ -242,17 +242,18 @@ Tests the archive and statistics endpoints.
 
 ### build-assets.sh
 
-Minifies CSS and JavaScript files for production deployment.
+Generates content-hashed filenames for CSS and JavaScript files, enabling aggressive caching without stale asset issues.
 
 ```bash
 ./scripts/build-assets.sh
 ```
 
 **Output:**
-- Creates minified files in `web/static/dist/`
-- Reports size reduction for each file (typically 8-20% reduction)
+- Creates hashed files in `web/static/dist/` (e.g., `styles.08535cc8.css`)
+- Generates `manifest.json` mapping original paths to hashed versions
+- Hashed assets are served with immutable cache headers (1 year)
 
-**Note:** For production deployments, consider using proper minification tools like esbuild, terser, or csso for better compression.
+**Note:** This script runs automatically during container builds. The Go server reads the manifest and injects hashed paths into HTML templates.
 
 ### Adding New Scripts
 
@@ -313,7 +314,7 @@ podman build -f Containerfile -t yearofbingo .
 - **Security Headers**: CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
 - **HTTPS**: HSTS enabled when `SERVER_SECURE=true`
 - **Compression**: Gzip for text responses
-- **Caching**: Appropriate cache headers for static assets and API responses
+- **Caching**: Content-hashed assets cached immutably (1 year); API responses not cached
 - **Logging**: Structured JSON request logs with timing and status
 
 ## Accessibility
