@@ -47,6 +47,12 @@ func (c *CacheControl) Apply(next http.Handler) http.Handler {
 func (c *CacheControl) setStaticCacheHeaders(w http.ResponseWriter, path string) {
 	lowerPath := strings.ToLower(path)
 
+	// Hashed assets in /static/dist/ are immutable - cache forever
+	if strings.HasPrefix(path, "/static/dist/") {
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		return
+	}
+
 	// Long-lived immutable assets (fonts, images)
 	if isImmutableAsset(lowerPath) {
 		// Cache for 1 year
@@ -54,10 +60,9 @@ func (c *CacheControl) setStaticCacheHeaders(w http.ResponseWriter, path string)
 		return
 	}
 
-	// CSS and JS - cache for 1 day with revalidation
-	// In development, we want faster refresh; in production with hashed filenames, use longer cache
+	// Non-hashed CSS and JS (dev mode) - short cache with revalidation
 	if strings.HasSuffix(lowerPath, ".css") || strings.HasSuffix(lowerPath, ".js") {
-		w.Header().Set("Cache-Control", "public, max-age=86400, must-revalidate")
+		w.Header().Set("Cache-Control", "public, max-age=60, must-revalidate")
 		return
 	}
 

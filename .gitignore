@@ -45,6 +45,9 @@ Thumbs.db
 /build/
 /server
 
+# Generated hashed assets (built during container build)
+web/static/dist/
+
 # Temporary files
 /tmp/
 *.tmp

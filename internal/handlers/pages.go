@@ -4,10 +4,13 @@ import (
 	"html/template"
 	"net/http"
 	"path/filepath"
+
+	"github.com/HammerMeetNail/yearofbingo/internal/assets"
 )
 
 type PageHandler struct {
 	templates *template.Template
+	manifest  *assets.Manifest
 }
 
 func NewPageHandler(templatesDir string) (*PageHandler, error) {
@@ -16,7 +19,17 @@ func NewPageHandler(templatesDir string) (*PageHandler, error) {
 		return nil, err
 	}
 
-	return &PageHandler{templates: templates}, nil
+	// Load asset manifest for cache-busted filenames
+	manifest := assets.NewManifest(".")
+	if err := manifest.Load(); err != nil {
+		// Non-fatal: fall back to original paths in dev mode
+		_ = err
+	}
+
+	return &PageHandler{
+		templates: templates,
+		manifest:  manifest,
+	}, nil
 }
 
 type PageData struct {
@@ -24,13 +37,19 @@ type PageData struct {
 	HideHeader bool
 	Content    template.HTML
 	Scripts    template.HTML
+	CSSPath    string
+	APIJSPath  string
+	AppJSPath  string
 }
 
 func (h *PageHandler) Index(w http.ResponseWriter, r *http.Request) {
 	// For a SPA, we serve the same template for all routes
 	// The JavaScript router handles the actual routing
 	data := PageData{
-		Title: "Year of Bingo",
+		Title:     "Year of Bingo",
+		CSSPath:   h.manifest.GetCSS(),
+		APIJSPath: h.manifest.GetAPIJS(),
+		AppJSPath: h.manifest.GetAppJS(),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
