@@ -38,11 +38,11 @@ func (s *UserService) Create(ctx context.Context, params models.CreateUserParams
 
 	user := &models.User{}
 	err = s.db.QueryRow(ctx,
-		`INSERT INTO users (email, password_hash, display_name)
-		 VALUES ($1, $2, $3)
-		 RETURNING id, email, password_hash, display_name, created_at, updated_at`,
+		`INSERT INTO users (email, password_hash, display_name, email_verified)
+		 VALUES ($1, $2, $3, false)
+		 RETURNING id, email, password_hash, display_name, email_verified, email_verified_at, created_at, updated_at`,
 		params.Email, params.PasswordHash, params.DisplayName,
-	).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.DisplayName, &user.CreatedAt, &user.UpdatedAt)
+	).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.DisplayName, &user.EmailVerified, &user.EmailVerifiedAt, &user.CreatedAt, &user.UpdatedAt)
 
 	if err != nil {
 		return nil, fmt.Errorf("creating user: %w", err)
@@ -54,10 +54,10 @@ func (s *UserService) Create(ctx context.Context, params models.CreateUserParams
 func (s *UserService) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	user := &models.User{}
 	err := s.db.QueryRow(ctx,
-		`SELECT id, email, password_hash, display_name, created_at, updated_at
+		`SELECT id, email, password_hash, display_name, email_verified, email_verified_at, created_at, updated_at
 		 FROM users WHERE id = $1`,
 		id,
-	).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.DisplayName, &user.CreatedAt, &user.UpdatedAt)
+	).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.DisplayName, &user.EmailVerified, &user.EmailVerifiedAt, &user.CreatedAt, &user.UpdatedAt)
 
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrUserNotFound
@@ -72,10 +72,10 @@ func (s *UserService) GetByID(ctx context.Context, id uuid.UUID) (*models.User, 
 func (s *UserService) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	user := &models.User{}
 	err := s.db.QueryRow(ctx,
-		`SELECT id, email, password_hash, display_name, created_at, updated_at
+		`SELECT id, email, password_hash, display_name, email_verified, email_verified_at, created_at, updated_at
 		 FROM users WHERE email = $1`,
 		email,
-	).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.DisplayName, &user.CreatedAt, &user.UpdatedAt)
+	).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.DisplayName, &user.EmailVerified, &user.EmailVerifiedAt, &user.CreatedAt, &user.UpdatedAt)
 
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrUserNotFound
@@ -105,9 +105,10 @@ func (s *UserService) UpdatePassword(ctx context.Context, userID uuid.UUID, newP
 
 func (s *UserService) SearchByEmailOrName(ctx context.Context, query string, limit int) ([]*models.User, error) {
 	rows, err := s.db.Query(ctx,
-		`SELECT id, email, password_hash, display_name, created_at, updated_at
+		`SELECT id, email, password_hash, display_name, email_verified, email_verified_at, created_at, updated_at
 		 FROM users
-		 WHERE email ILIKE $1 OR display_name ILIKE $1
+		 WHERE (email ILIKE $1 OR display_name ILIKE $1)
+		   AND email_verified = true
 		 LIMIT $2`,
 		"%"+query+"%", limit,
 	)
@@ -119,7 +120,7 @@ func (s *UserService) SearchByEmailOrName(ctx context.Context, query string, lim
 	var users []*models.User
 	for rows.Next() {
 		user := &models.User{}
-		if err := rows.Scan(&user.ID, &user.Email, &user.PasswordHash, &user.DisplayName, &user.CreatedAt, &user.UpdatedAt); err != nil {
+		if err := rows.Scan(&user.ID, &user.Email, &user.PasswordHash, &user.DisplayName, &user.EmailVerified, &user.EmailVerifiedAt, &user.CreatedAt, &user.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scanning user: %w", err)
 		}
 		users = append(users, user)

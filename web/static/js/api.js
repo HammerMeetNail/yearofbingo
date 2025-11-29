@@ -136,6 +136,30 @@ const API = {
         new_password: newPassword,
       });
     },
+
+    async verifyEmail(token) {
+      return API.request('POST', '/api/auth/verify-email', { token });
+    },
+
+    async resendVerification() {
+      return API.request('POST', '/api/auth/resend-verification');
+    },
+
+    async requestMagicLink(email) {
+      return API.request('POST', '/api/auth/magic-link', { email });
+    },
+
+    async verifyMagicLink(token) {
+      return API.request('GET', `/api/auth/magic-link/verify?token=${encodeURIComponent(token)}`);
+    },
+
+    async forgotPassword(email) {
+      return API.request('POST', '/api/auth/forgot-password', { email });
+    },
+
+    async resetPassword(token, password) {
+      return API.request('POST', '/api/auth/reset-password', { token, password });
+    },
   },
 
   // Card endpoints

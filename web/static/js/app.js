@@ -80,7 +80,7 @@ const App = {
         <a href="#dashboard" class="nav-link">My Cards</a>
         <a href="#archive" class="nav-link">Archive</a>
         <a href="#friends" class="nav-link">Friends</a>
-        <span class="nav-link text-muted">Hi, ${this.escapeHtml(this.user.display_name)}</span>
+        <a href="#profile" class="nav-link">Hi, ${this.escapeHtml(this.user.display_name)}</a>
         <button class="btn btn-ghost" onclick="App.logout()">Logout</button>
       `;
     } else {
@@ -290,7 +290,10 @@ const App = {
 
   route() {
     const hash = window.location.hash.slice(1) || 'home';
-    const [page, ...params] = hash.split('/');
+    // Parse hash with query parameters: page?param=value
+    const [pagePart, queryPart] = hash.split('?');
+    const [page, ...params] = pagePart.split('/');
+    const queryParams = new URLSearchParams(queryPart || '');
 
     const container = document.getElementById('main-container');
     if (!container) return;
@@ -300,10 +303,29 @@ const App = {
         this.renderHome(container);
         break;
       case 'login':
-        this.renderLogin(container);
+        this.renderLogin(container, queryParams.get('error'));
         break;
       case 'register':
         this.renderRegister(container);
+        break;
+      case 'magic-link':
+        if (queryParams.has('token')) {
+          this.handleMagicLinkVerify(container, queryParams.get('token'));
+        } else {
+          this.renderMagicLinkRequest(container);
+        }
+        break;
+      case 'forgot-password':
+        this.renderForgotPassword(container);
+        break;
+      case 'reset-password':
+        this.renderResetPassword(container, queryParams.get('token'));
+        break;
+      case 'verify-email':
+        this.handleVerifyEmail(container, queryParams.get('token'));
+        break;
+      case 'check-email':
+        this.renderCheckEmail(container, queryParams.get('type'), queryParams.get('email'));
         break;
       case 'dashboard':
         this.requireAuth(() => this.renderDashboard(container));
@@ -326,6 +348,9 @@ const App = {
         break;
       case 'archive-card':
         this.requireAuth(() => this.renderArchiveCard(container, params[0]));
+        break;
+      case 'profile':
+        this.requireAuth(() => this.renderProfile(container));
         break;
       default:
         this.renderHome(container);
@@ -387,11 +412,17 @@ const App = {
     `;
   },
 
-  renderLogin(container) {
+  renderLogin(container, errorMessage = null) {
     if (this.user) {
       window.location.hash = '#dashboard';
       return;
     }
+
+    const errorMessages = {
+      'invalid_link': 'This login link is invalid or has expired.',
+      'link_used': 'This login link has already been used.',
+    };
+    const displayError = errorMessages[errorMessage] || errorMessage;
 
     container.innerHTML = `
       <div class="auth-page">
@@ -400,6 +431,7 @@ const App = {
             <h2 class="auth-title">Welcome Back</h2>
             <p class="text-muted">Sign in to your account</p>
           </div>
+          ${displayError ? `<div class="form-error" style="margin-bottom: 1rem;">${this.escapeHtml(displayError)}</div>` : ''}
           <form id="login-form">
             <div class="form-group">
               <label class="form-label" for="email">Email</label>
@@ -414,6 +446,15 @@ const App = {
               Sign In
             </button>
           </form>
+          <div style="text-align: center; margin: 1rem 0;">
+            <a href="#forgot-password" class="text-muted">Forgot password?</a>
+          </div>
+          <div class="auth-divider">
+            <span>or</span>
+          </div>
+          <a href="#magic-link" class="btn btn-secondary btn-lg" style="width: 100%; margin-bottom: 1rem;">
+            Sign in with email link
+          </a>
           <div class="auth-footer">
             Don't have an account? <a href="#register">Sign up</a>
           </div>
@@ -491,7 +532,7 @@ const App = {
         this.user = response.user;
         this.setupNavigation();
         window.location.hash = '#create';
-        this.toast('Account created! Let\'s make your first card.', 'success');
+        this.toast('Account created! Check your email to verify your account.', 'success');
       } catch (error) {
         errorEl.textContent = error.message;
         errorEl.classList.remove('hidden');
@@ -499,8 +540,319 @@ const App = {
     });
   },
 
+  // Magic Link Authentication
+  renderMagicLinkRequest(container) {
+    if (this.user) {
+      window.location.hash = '#dashboard';
+      return;
+    }
+
+    container.innerHTML = `
+      <div class="auth-page">
+        <div class="card auth-card">
+          <div class="auth-header">
+            <h2 class="auth-title">Sign in with email link</h2>
+            <p class="text-muted">We'll send you a link to sign in instantly</p>
+          </div>
+          <form id="magic-link-form">
+            <div class="form-group">
+              <label class="form-label" for="email">Email</label>
+              <input type="email" id="email" class="form-input" required autocomplete="email">
+            </div>
+            <div id="magic-link-error" class="form-error hidden"></div>
+            <button type="submit" class="btn btn-primary btn-lg" style="width: 100%;">
+              Send login link
+            </button>
+          </form>
+          <div class="auth-footer">
+            <a href="#login">Back to sign in</a>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.getElementById('magic-link-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value;
+      const errorEl = document.getElementById('magic-link-error');
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+
+      this.setButtonLoading(submitBtn, true);
+
+      try {
+        await API.auth.requestMagicLink(email);
+        window.location.hash = `#check-email?type=magic-link&email=${encodeURIComponent(email)}`;
+      } catch (error) {
+        errorEl.textContent = error.message;
+        errorEl.classList.remove('hidden');
+        this.setButtonLoading(submitBtn, false);
+      }
+    });
+  },
+
+  async handleMagicLinkVerify(container, token) {
+    container.innerHTML = `
+      <div class="auth-page">
+        <div class="card auth-card text-center">
+          <div class="spinner" style="margin: 2rem auto;"></div>
+          <p>Signing you in...</p>
+        </div>
+      </div>
+    `;
+
+    try {
+      const response = await API.auth.verifyMagicLink(token);
+      this.user = response.user;
+      this.setupNavigation();
+      window.location.hash = '#dashboard';
+      this.toast('Welcome back!', 'success');
+    } catch (error) {
+      window.location.hash = `#login?error=${encodeURIComponent(error.message)}`;
+    }
+  },
+
+  // Forgot Password
+  renderForgotPassword(container) {
+    container.innerHTML = `
+      <div class="auth-page">
+        <div class="card auth-card">
+          <div class="auth-header">
+            <h2 class="auth-title">Reset your password</h2>
+            <p class="text-muted">Enter your email and we'll send you a reset link</p>
+          </div>
+          <form id="forgot-password-form">
+            <div class="form-group">
+              <label class="form-label" for="email">Email</label>
+              <input type="email" id="email" class="form-input" required autocomplete="email">
+            </div>
+            <div id="forgot-error" class="form-error hidden"></div>
+            <button type="submit" class="btn btn-primary btn-lg" style="width: 100%;">
+              Send reset link
+            </button>
+          </form>
+          <div class="auth-footer">
+            <a href="#login">Back to sign in</a>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.getElementById('forgot-password-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value;
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+
+      this.setButtonLoading(submitBtn, true);
+
+      try {
+        await API.auth.forgotPassword(email);
+        window.location.hash = `#check-email?type=reset&email=${encodeURIComponent(email)}`;
+      } catch (error) {
+        // Still redirect even on error to prevent email enumeration
+        window.location.hash = `#check-email?type=reset&email=${encodeURIComponent(email)}`;
+      }
+    });
+  },
+
+  // Reset Password
+  renderResetPassword(container, token) {
+    if (!token) {
+      container.innerHTML = `
+        <div class="auth-page">
+          <div class="card auth-card text-center">
+            <h2>Invalid Reset Link</h2>
+            <p class="text-muted">This password reset link is invalid or missing.</p>
+            <a href="#forgot-password" class="btn btn-primary" style="margin-top: 1rem;">Request new link</a>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = `
+      <div class="auth-page">
+        <div class="card auth-card">
+          <div class="auth-header">
+            <h2 class="auth-title">Choose new password</h2>
+            <p class="text-muted">Enter your new password below</p>
+          </div>
+          <form id="reset-password-form">
+            <div class="form-group">
+              <label class="form-label" for="password">New Password</label>
+              <input type="password" id="password" class="form-input" required minlength="8" autocomplete="new-password">
+              <small class="text-muted">At least 8 characters with uppercase, lowercase, and number</small>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="confirm-password">Confirm Password</label>
+              <input type="password" id="confirm-password" class="form-input" required minlength="8" autocomplete="new-password">
+            </div>
+            <div id="reset-error" class="form-error hidden"></div>
+            <button type="submit" class="btn btn-primary btn-lg" style="width: 100%;">
+              Reset Password
+            </button>
+          </form>
+        </div>
+      </div>
+    `;
+
+    document.getElementById('reset-password-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const password = document.getElementById('password').value;
+      const confirmPassword = document.getElementById('confirm-password').value;
+      const errorEl = document.getElementById('reset-error');
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+
+      if (password !== confirmPassword) {
+        errorEl.textContent = 'Passwords do not match';
+        errorEl.classList.remove('hidden');
+        return;
+      }
+
+      this.setButtonLoading(submitBtn, true);
+
+      try {
+        const response = await API.auth.resetPassword(token, password);
+        this.user = response.user;
+        this.setupNavigation();
+        window.location.hash = '#dashboard';
+        this.toast('Password reset successfully!', 'success');
+      } catch (error) {
+        errorEl.textContent = error.message;
+        errorEl.classList.remove('hidden');
+        this.setButtonLoading(submitBtn, false);
+      }
+    });
+  },
+
+  // Email Verification
+  async handleVerifyEmail(container, token) {
+    if (!token) {
+      container.innerHTML = `
+        <div class="auth-page">
+          <div class="card auth-card text-center">
+            <h2>Invalid Link</h2>
+            <p class="text-muted">This verification link is invalid or missing.</p>
+            ${this.user ? `<a href="#dashboard" class="btn btn-primary" style="margin-top: 1rem;">Go to Dashboard</a>` : `<a href="#login" class="btn btn-primary" style="margin-top: 1rem;">Sign In</a>`}
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = `
+      <div class="auth-page">
+        <div class="card auth-card text-center">
+          <div class="spinner" style="margin: 2rem auto;"></div>
+          <p>Verifying your email...</p>
+        </div>
+      </div>
+    `;
+
+    try {
+      await API.auth.verifyEmail(token);
+      // Refresh user data
+      if (this.user) {
+        await this.checkAuth();
+        this.setupNavigation();
+      }
+      container.innerHTML = `
+        <div class="auth-page">
+          <div class="card auth-card text-center">
+            <div style="font-size: 4rem; margin-bottom: 1rem;">✓</div>
+            <h2>Email Verified!</h2>
+            <p class="text-muted">Your email has been verified successfully.</p>
+            ${this.user ? `<a href="#dashboard" class="btn btn-primary" style="margin-top: 1rem;">Go to Dashboard</a>` : `<a href="#login" class="btn btn-primary" style="margin-top: 1rem;">Sign In</a>`}
+          </div>
+        </div>
+      `;
+    } catch (error) {
+      container.innerHTML = `
+        <div class="auth-page">
+          <div class="card auth-card text-center">
+            <div style="font-size: 4rem; margin-bottom: 1rem;">✗</div>
+            <h2>Verification Failed</h2>
+            <p class="text-muted">${this.escapeHtml(error.message)}</p>
+            ${this.user ? `
+              <button class="btn btn-primary" style="margin-top: 1rem;" onclick="App.resendVerification()">
+                Resend Verification Email
+              </button>
+            ` : `<a href="#login" class="btn btn-primary" style="margin-top: 1rem;">Sign In</a>`}
+          </div>
+        </div>
+      `;
+    }
+  },
+
+  async resendVerification() {
+    try {
+      await API.auth.resendVerification();
+      this.toast('Verification email sent!', 'success');
+    } catch (error) {
+      this.toast(error.message, 'error');
+    }
+  },
+
+  // Check Email Interstitial
+  renderCheckEmail(container, type, email) {
+    const messages = {
+      'magic-link': {
+        title: 'Check your email',
+        description: 'We sent a login link to',
+        detail: 'Click the link in the email to sign in. The link expires in 15 minutes.',
+      },
+      'reset': {
+        title: 'Check your email',
+        description: 'If an account exists for',
+        detail: 'you will receive a password reset link. The link expires in 1 hour.',
+      },
+      'verification': {
+        title: 'Verify your email',
+        description: 'We sent a verification link to',
+        detail: 'Click the link to verify your email address. The link expires in 24 hours.',
+      },
+    };
+
+    const msg = messages[type] || messages['magic-link'];
+
+    container.innerHTML = `
+      <div class="auth-page">
+        <div class="card auth-card text-center">
+          <div style="font-size: 4rem; margin-bottom: 1rem;">✉️</div>
+          <h2>${msg.title}</h2>
+          <p class="text-muted">
+            ${msg.description}<br>
+            <strong>${email ? this.escapeHtml(email) : 'your email'}</strong>
+          </p>
+          <p class="text-muted" style="margin-top: 1rem;">
+            ${msg.detail}
+          </p>
+          <div style="margin-top: 1.5rem;">
+            <a href="#login" class="btn btn-ghost">Back to sign in</a>
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  // Email verification banner for dashboard
+  renderEmailVerificationBanner() {
+    if (!this.user || this.user.email_verified) return '';
+    return `
+      <div class="verification-banner" style="background: rgba(245, 158, 11, 0.15); border: 1px solid #f59e0b; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+        <div style="color: #fff;">
+          <strong style="color: #ffd700;">Please verify your email</strong>
+          <span style="color: #b0b0c0;"> to enable all features.</span>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="App.resendVerification()">
+          Resend verification email
+        </button>
+      </div>
+    `;
+  },
+
   async renderDashboard(container) {
     container.innerHTML = `
+      ${this.renderEmailVerificationBanner()}
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
         <h2>My Bingo Cards</h2>
         <div style="display: flex; gap: 0.5rem;">
@@ -890,15 +1242,25 @@ const App = {
     const progress = Math.round((itemCount / 24) * 100);
     const displayName = this.getCardDisplayName(this.currentCard);
     const categoryBadge = this.getCategoryBadge(this.currentCard);
+    const isAnon = this.isAnonymousMode;
 
     container.innerHTML = `
+      ${isAnon ? `
+        <div class="anonymous-card-banner">
+          <div class="anonymous-card-banner-content">
+            <span class="anonymous-card-banner-icon">💾</span>
+            <span>This card is saved locally in your browser. <a href="#register" class="anonymous-card-banner-link">Create an account</a> to save it permanently.</span>
+          </div>
+        </div>
+      ` : ''}
+
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-        <a href="#dashboard" class="btn btn-ghost">&larr; Back</a>
+        <a href="${isAnon ? '#home' : '#dashboard'}" class="btn btn-ghost">&larr; Back</a>
         <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; justify-content: center;">
           <h2 style="margin: 0;">${displayName}</h2>
           <span class="year-badge">${this.currentCard.year}</span>
           ${categoryBadge}
-          <button class="btn btn-ghost btn-sm" onclick="App.showEditCardMetaModal()" title="Edit card name">✏️</button>
+          <button class="btn btn-ghost btn-sm" onclick="App.${isAnon ? 'showEditAnonymousCardMetaModal' : 'showEditCardMetaModal'}()" title="Edit card name">✏️</button>
         </div>
         <div></div>
       </div>
@@ -909,17 +1271,19 @@ const App = {
       <p class="progress-text mb-lg">${itemCount}/24 items added</p>
 
       <div class="card-editor-layout">
-        <div class="bingo-container">
+        <div class="bingo-container editor-grid">
           <div class="bingo-grid" id="bingo-grid">
             ${this.renderGrid()}
           </div>
+        </div>
 
-          <div class="input-area" style="width: 100%; max-width: 600px;">
-            <input type="text" id="item-input" class="form-input" placeholder="Type your goal or pick a suggestion..." maxlength="500" ${itemCount >= 24 ? 'disabled' : ''}>
+        <div class="editor-sidebar">
+          <div class="input-area editor-input">
+            <input type="text" id="item-input" class="form-input" placeholder="Type your goal..." maxlength="500" ${itemCount >= 24 ? 'disabled' : ''}>
             <button class="btn btn-primary" id="add-btn" ${itemCount >= 24 ? 'disabled' : ''}>Add</button>
           </div>
 
-          <div class="action-bar">
+          <div class="action-bar action-bar--side editor-actions">
             <button class="btn btn-secondary" onclick="App.shuffleCard()" ${itemCount === 0 ? 'disabled' : ''}>
               🔀 Shuffle
             </button>
@@ -927,22 +1291,33 @@ const App = {
               ✓ Finalize Card
             </button>
           </div>
-        </div>
 
-        <div class="suggestions-panel">
-          <div class="suggestions-header">
-            <h3 class="suggestions-title">Suggestions</h3>
-          </div>
-          <div class="suggestions-categories" id="category-tabs">
-            ${this.suggestions.map((cat, i) => `
-              <button class="category-tab ${i === 0 ? 'category-tab--active' : ''}" data-category="${cat.category}">
-                ${cat.category.split(' ')[0]}
+          <div class="suggestions-panel editor-suggestions">
+            <div class="suggestions-header">
+              <h3 class="suggestions-title">Suggestions</h3>
+              <button class="btn btn-secondary btn-sm" id="fill-empty-btn" onclick="App.fillEmptySpaces()" ${itemCount >= 24 ? 'disabled' : ''}>
+                ✨ Fill Empty
               </button>
-            `).join('')}
+            </div>
+            <div class="suggestions-categories" id="category-tabs">
+              ${this.suggestions.map((cat, i) => `
+                <button class="category-tab ${i === 0 ? 'category-tab--active' : ''}" data-category="${cat.category}">
+                  ${cat.category.split(' ')[0]}
+                </button>
+              `).join('')}
+            </div>
+            <div class="suggestions-list" id="suggestions-list">
+              ${this.renderSuggestions(this.suggestions[0]?.category)}
+            </div>
           </div>
-          <div class="suggestions-list" id="suggestions-list">
-            ${this.renderSuggestions(this.suggestions[0]?.category)}
-          </div>
+
+          ${isAnon ? `
+            <div class="editor-delete">
+              <button class="btn btn-ghost" style="color: var(--danger);" onclick="App.confirmDeleteAnonymousCard()">
+                Delete Card
+              </button>
+            </div>
+          ` : ''}
         </div>
       </div>
     `;
@@ -950,7 +1325,7 @@ const App = {
     this.setupEditorEvents();
   },
 
-  // Render the anonymous card editor (localStorage mode)
+  // Load and render the anonymous card editor (localStorage mode)
   async renderAnonymousCardEditor(container) {
     this.isAnonymousMode = true;
 
@@ -978,81 +1353,8 @@ const App = {
       (this.currentCard.items || []).map(i => i.content.toLowerCase())
     );
 
-    const itemCount = this.currentCard.items ? this.currentCard.items.length : 0;
-    const progress = Math.round((itemCount / 24) * 100);
-    const displayName = this.getCardDisplayName(this.currentCard);
-    const categoryBadge = this.getCategoryBadge(this.currentCard);
-
-    container.innerHTML = `
-      <div class="anonymous-card-banner">
-        <div class="anonymous-card-banner-content">
-          <span class="anonymous-card-banner-icon">💾</span>
-          <span>This card is saved locally in your browser. <a href="#register" class="anonymous-card-banner-link">Create an account</a> to save it permanently.</span>
-        </div>
-      </div>
-
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-        <a href="#home" class="btn btn-ghost">&larr; Back</a>
-        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; justify-content: center;">
-          <h2 style="margin: 0;">${displayName}</h2>
-          <span class="year-badge">${this.currentCard.year}</span>
-          ${categoryBadge}
-          <button class="btn btn-ghost btn-sm" onclick="App.showEditAnonymousCardMetaModal()" title="Edit card name">✏️</button>
-        </div>
-        <div></div>
-      </div>
-
-      <div class="progress-bar">
-        <div class="progress-fill" style="width: ${progress}%"></div>
-      </div>
-      <p class="progress-text mb-lg">${itemCount}/24 items added</p>
-
-      <div class="card-editor-layout">
-        <div class="bingo-container">
-          <div class="bingo-grid" id="bingo-grid">
-            ${this.renderGrid()}
-          </div>
-
-          <div class="input-area" style="width: 100%; max-width: 600px;">
-            <input type="text" id="item-input" class="form-input" placeholder="Type your goal or pick a suggestion..." maxlength="500" ${itemCount >= 24 ? 'disabled' : ''}>
-            <button class="btn btn-primary" id="add-btn" ${itemCount >= 24 ? 'disabled' : ''}>Add</button>
-          </div>
-
-          <div class="action-bar">
-            <button class="btn btn-secondary" onclick="App.shuffleCard()" ${itemCount === 0 ? 'disabled' : ''}>
-              🔀 Shuffle
-            </button>
-            <button class="btn btn-primary" onclick="App.finalizeCard()" ${itemCount < 24 ? 'disabled' : ''}>
-              ✓ Finalize Card
-            </button>
-          </div>
-
-          <div class="action-bar" style="margin-top: 0.5rem;">
-            <button class="btn btn-ghost" style="color: var(--danger);" onclick="App.confirmDeleteAnonymousCard()">
-              Delete Card
-            </button>
-          </div>
-        </div>
-
-        <div class="suggestions-panel">
-          <div class="suggestions-header">
-            <h3 class="suggestions-title">Suggestions</h3>
-          </div>
-          <div class="suggestions-categories" id="category-tabs">
-            ${this.suggestions.map((cat, i) => `
-              <button class="category-tab ${i === 0 ? 'category-tab--active' : ''}" data-category="${cat.category}">
-                ${cat.category.split(' ')[0]}
-              </button>
-            `).join('')}
-          </div>
-          <div class="suggestions-list" id="suggestions-list">
-            ${this.renderSuggestions(this.suggestions[0]?.category)}
-          </div>
-        </div>
-      </div>
-    `;
-
-    this.setupEditorEvents();
+    // Use the shared editor renderer
+    this.renderCardEditor(container);
   },
 
   // Edit anonymous card metadata
@@ -1526,6 +1828,7 @@ const App = {
       if (itemCount >= 24) {
         input.disabled = true;
         document.getElementById('add-btn').disabled = true;
+        document.getElementById('fill-empty-btn').disabled = true;
         document.querySelector('[onclick="App.finalizeCard()"]').disabled = false;
       }
       document.querySelector('[onclick="App.shuffleCard()"]').disabled = false;
@@ -1546,6 +1849,111 @@ const App = {
     const content = element.dataset.content;
     document.getElementById('item-input').value = content;
     this.addItem();
+  },
+
+  async fillEmptySpaces() {
+    const currentItemCount = this.currentCard.items ? this.currentCard.items.length : 0;
+    const emptyCount = 24 - currentItemCount;
+
+    if (emptyCount === 0) {
+      this.toast('Card is already full', 'info');
+      return;
+    }
+
+    // Get all unused suggestions from all categories
+    const allUnusedSuggestions = [];
+    for (const category of this.suggestions) {
+      for (const suggestion of category.suggestions) {
+        if (!this.usedSuggestions.has(suggestion.content.toLowerCase())) {
+          allUnusedSuggestions.push(suggestion.content);
+        }
+      }
+    }
+
+    if (allUnusedSuggestions.length === 0) {
+      this.toast('No more suggestions available', 'error');
+      return;
+    }
+
+    // Shuffle and pick the number we need
+    const shuffled = allUnusedSuggestions.sort(() => Math.random() - 0.5);
+    const toAdd = shuffled.slice(0, Math.min(emptyCount, shuffled.length));
+
+    if (toAdd.length < emptyCount) {
+      this.toast(`Only ${toAdd.length} suggestions available, adding those`, 'info');
+    }
+
+    // Add items one by one
+    let added = 0;
+    for (const content of toAdd) {
+      try {
+        let position;
+
+        if (this.isAnonymousMode) {
+          // Add to localStorage
+          const item = AnonymousCard.addItem(content);
+          if (!item) {
+            break; // Card is full
+          }
+          position = item.position;
+
+          // Update local state
+          if (!this.currentCard.items) this.currentCard.items = [];
+          this.currentCard.items.push({
+            position: item.position,
+            content: content,
+            is_completed: false,
+          });
+        } else {
+          // Add to server
+          const response = await API.cards.addItem(this.currentCard.id, content);
+          position = response.item.position;
+
+          // Update local state
+          if (!this.currentCard.items) this.currentCard.items = [];
+          this.currentCard.items.push(response.item);
+        }
+
+        this.usedSuggestions.add(content.toLowerCase());
+
+        // Update grid with animation
+        const cell = document.querySelector(`[data-position="${position}"]`);
+        cell.classList.remove('bingo-cell--empty');
+        cell.classList.add('bingo-cell--appearing');
+        cell.dataset.itemId = this.isAnonymousMode ? `anon-${position}` : this.currentCard.items[this.currentCard.items.length - 1].id;
+        cell.dataset.content = this.escapeHtml(content);
+        cell.draggable = true;
+        cell.title = content;
+        cell.innerHTML = `<span class="bingo-cell-content">${this.escapeHtml(this.truncateText(content, 50))}</span>`;
+
+        added++;
+      } catch (error) {
+        console.error('Failed to add item:', error);
+        break;
+      }
+    }
+
+    // Update progress
+    const itemCount = this.currentCard.items.length;
+    const progress = Math.round((itemCount / 24) * 100);
+    document.querySelector('.progress-fill').style.width = `${progress}%`;
+    document.querySelector('.progress-text').textContent = `${itemCount}/24 items added`;
+
+    // Update buttons
+    const isFull = itemCount >= 24;
+    document.getElementById('item-input').disabled = isFull;
+    document.getElementById('add-btn').disabled = isFull;
+    document.getElementById('fill-empty-btn').disabled = isFull;
+    document.querySelector('[onclick="App.shuffleCard()"]').disabled = itemCount === 0;
+    document.querySelector('[onclick="App.finalizeCard()"]').disabled = itemCount < 24;
+
+    // Update suggestions panel
+    const activeTab = document.querySelector('.category-tab--active');
+    if (activeTab) {
+      document.getElementById('suggestions-list').innerHTML = this.renderSuggestions(activeTab.dataset.category);
+    }
+
+    this.toast(`Added ${added} item${added !== 1 ? 's' : ''} to your card`, 'success');
   },
 
   async removeItem(position) {
@@ -1582,6 +1990,7 @@ const App = {
       // Update buttons
       document.getElementById('item-input').disabled = false;
       document.getElementById('add-btn').disabled = false;
+      document.getElementById('fill-empty-btn').disabled = false;
       document.querySelector('[onclick="App.finalizeCard()"]').disabled = true;
       if (itemCount === 0) {
         document.querySelector('[onclick="App.shuffleCard()"]').disabled = true;
@@ -2459,6 +2868,119 @@ const App = {
     } catch (error) {
       this.toast(error.message, 'error');
     }
+  },
+
+  // Profile page
+  renderProfile(container) {
+    const verifiedBadge = this.user.email_verified
+      ? '<span class="badge badge-success">Verified</span>'
+      : '<span class="badge badge-warning">Not verified</span>';
+
+    const verificationSection = this.user.email_verified
+      ? ''
+      : `
+        <div class="profile-alert">
+          <p><strong>Your email is not verified.</strong> Please check your inbox for the verification email.</p>
+          <button class="btn btn-secondary btn-sm" onclick="App.resendVerification()">Resend verification email</button>
+        </div>
+      `;
+
+    container.innerHTML = `
+      <div class="profile-page">
+        <div class="profile-header">
+          <a href="#dashboard" class="btn btn-ghost">&larr; Back</a>
+          <h2>Account Settings</h2>
+          <div></div>
+        </div>
+
+        ${verificationSection}
+
+        <div class="profile-sections">
+          <div class="card profile-section">
+            <h3>Profile Information</h3>
+            <div class="profile-info-grid">
+              <div class="profile-info-item">
+                <label>Display Name</label>
+                <span>${this.escapeHtml(this.user.display_name)}</span>
+              </div>
+              <div class="profile-info-item">
+                <label>Email</label>
+                <span>${this.escapeHtml(this.user.email)} ${verifiedBadge}</span>
+              </div>
+              <div class="profile-info-item">
+                <label>Member Since</label>
+                <span>${new Date(this.user.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card profile-section">
+            <h3>Change Password</h3>
+            <form id="change-password-form" class="profile-form">
+              <div class="form-group">
+                <label for="current-password">Current Password</label>
+                <input type="password" id="current-password" class="form-input" required autocomplete="current-password">
+              </div>
+              <div class="form-group">
+                <label for="new-password">New Password</label>
+                <input type="password" id="new-password" class="form-input" required autocomplete="new-password">
+                <small class="text-muted">At least 8 characters with uppercase, lowercase, and a number</small>
+              </div>
+              <div class="form-group">
+                <label for="confirm-password">Confirm New Password</label>
+                <input type="password" id="confirm-password" class="form-input" required autocomplete="new-password">
+              </div>
+              <div class="form-error hidden" id="password-error"></div>
+              <button type="submit" class="btn btn-primary">Update Password</button>
+            </form>
+          </div>
+
+          <div class="card profile-section">
+            <h3>Account Actions</h3>
+            <div class="profile-actions">
+              <button class="btn btn-ghost" onclick="App.logout()">Sign Out</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    this.setupProfileEvents();
+  },
+
+  setupProfileEvents() {
+    const form = document.getElementById('change-password-form');
+    const errorEl = document.getElementById('password-error');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorEl.classList.add('hidden');
+
+      const currentPassword = document.getElementById('current-password').value;
+      const newPassword = document.getElementById('new-password').value;
+      const confirmPassword = document.getElementById('confirm-password').value;
+
+      if (newPassword !== confirmPassword) {
+        errorEl.textContent = 'New passwords do not match';
+        errorEl.classList.remove('hidden');
+        return;
+      }
+
+      if (newPassword.length < 8) {
+        errorEl.textContent = 'Password must be at least 8 characters';
+        errorEl.classList.remove('hidden');
+        return;
+      }
+
+      try {
+        await API.auth.changePassword(currentPassword, newPassword);
+        form.reset();
+        this.toast('Password updated successfully', 'success');
+      } catch (error) {
+        errorEl.textContent = error.message;
+        errorEl.classList.remove('hidden');
+      }
+    });
   },
 
   // Archive page
