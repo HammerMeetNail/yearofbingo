@@ -24,7 +24,8 @@ jobs:
     name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
-      code: ${{ steps.filter.outputs.code }}
+      # For version tags, always treat as code change to run full pipeline
+      code: ${{ startsWith(github.ref, 'refs/tags/v') || steps.filter.outputs.code }}
       tests: ${{ steps.filter.outputs.tests }}
     steps:
       - name: Checkout code
