@@ -2055,24 +2055,169 @@ const App = {
       const toPosition = parseInt(targetCell.dataset.position);
 
       try {
-        if (targetCell.classList.contains('bingo-cell--empty')) {
-          // Move to empty cell
-          await API.cards.updateItem(this.currentCard.id, fromPosition, { position: toPosition });
-        } else {
-          // Swap positions - need to handle this differently
-          // For now, just show an error
-          this.toast('Cannot swap items directly. Try shuffling instead.', 'error');
-          return;
-        }
+        // Use swap API - handles both moving to empty cells and swapping with filled cells
+        await API.cards.swap(this.currentCard.id, fromPosition, toPosition);
 
-        // Refresh the card
+        // Refresh the card (no need to re-setup drag/drop - event delegation still works)
         const response = await API.cards.get(this.currentCard.id);
         this.currentCard = response.card;
         document.getElementById('bingo-grid').innerHTML = this.renderGrid();
-        this.setupDragAndDrop();
       } catch (error) {
         this.toast(error.message, 'error');
       }
+    });
+
+    // Touch event handling for mobile drag and drop (only setup once)
+    if (!grid.dataset.touchSetup) {
+      grid.dataset.touchSetup = 'true';
+      this.setupTouchDragAndDrop(grid);
+    }
+  },
+
+  setupTouchDragAndDrop(grid) {
+    let touchDraggedCell = null;
+    let touchClone = null;
+    let touchStartTimer = null;
+    let touchStartPos = { x: 0, y: 0 };
+    let isDragging = false;
+    const LONG_PRESS_DELAY = 300; // ms
+    const MOVE_THRESHOLD = 10; // pixels before cancelling long press
+
+    const getCellAtPoint = (x, y) => {
+      // Hide clone temporarily to get element underneath
+      if (touchClone) touchClone.style.display = 'none';
+      const element = document.elementFromPoint(x, y);
+      if (touchClone) touchClone.style.display = '';
+      return element?.closest('.bingo-cell');
+    };
+
+    const createDragClone = (cell, x, y) => {
+      const clone = cell.cloneNode(true);
+      clone.className = 'bingo-cell bingo-cell--drag-clone';
+      clone.style.cssText = `
+        position: fixed;
+        width: ${cell.offsetWidth}px;
+        height: ${cell.offsetHeight}px;
+        left: ${x - cell.offsetWidth / 2}px;
+        top: ${y - cell.offsetHeight / 2}px;
+        z-index: 10000;
+        pointer-events: none;
+        opacity: 0.9;
+        transform: scale(1.05);
+        box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      `;
+      document.body.appendChild(clone);
+      return clone;
+    };
+
+    const cleanupDrag = () => {
+      if (touchClone) {
+        touchClone.remove();
+        touchClone = null;
+      }
+      if (touchDraggedCell) {
+        touchDraggedCell.classList.remove('bingo-cell--dragging');
+        touchDraggedCell = null;
+      }
+      document.querySelectorAll('.bingo-cell--drag-over').forEach(c => c.classList.remove('bingo-cell--drag-over'));
+      isDragging = false;
+      if (touchStartTimer) {
+        clearTimeout(touchStartTimer);
+        touchStartTimer = null;
+      }
+    };
+
+    grid.addEventListener('touchstart', (e) => {
+      const cell = e.target.closest('.bingo-cell');
+      if (!cell || cell.classList.contains('bingo-cell--empty') || cell.classList.contains('bingo-cell--free')) {
+        return;
+      }
+      if (!cell.hasAttribute('draggable')) return;
+
+      const touch = e.touches[0];
+      touchStartPos = { x: touch.clientX, y: touch.clientY };
+
+      // Start long press timer
+      touchStartTimer = setTimeout(() => {
+        isDragging = true;
+        touchDraggedCell = cell;
+        cell.classList.add('bingo-cell--dragging');
+        touchClone = createDragClone(cell, touch.clientX, touch.clientY);
+
+        // Haptic feedback if available
+        if (navigator.vibrate) navigator.vibrate(50);
+      }, LONG_PRESS_DELAY);
+    }, { passive: true });
+
+    grid.addEventListener('touchmove', (e) => {
+      const touch = e.touches[0];
+
+      // Cancel long press if moved too much before timer fires
+      if (!isDragging && touchStartTimer) {
+        const dx = Math.abs(touch.clientX - touchStartPos.x);
+        const dy = Math.abs(touch.clientY - touchStartPos.y);
+        if (dx > MOVE_THRESHOLD || dy > MOVE_THRESHOLD) {
+          clearTimeout(touchStartTimer);
+          touchStartTimer = null;
+        }
+        return;
+      }
+
+      if (!isDragging || !touchClone) return;
+
+      e.preventDefault();
+
+      // Move the clone
+      touchClone.style.left = `${touch.clientX - touchClone.offsetWidth / 2}px`;
+      touchClone.style.top = `${touch.clientY - touchClone.offsetHeight / 2}px`;
+
+      // Highlight cell under finger
+      document.querySelectorAll('.bingo-cell--drag-over').forEach(c => c.classList.remove('bingo-cell--drag-over'));
+      const cellUnder = getCellAtPoint(touch.clientX, touch.clientY);
+      if (cellUnder && cellUnder !== touchDraggedCell && !cellUnder.classList.contains('bingo-cell--free')) {
+        cellUnder.classList.add('bingo-cell--drag-over');
+      }
+    }, { passive: false });
+
+    grid.addEventListener('touchend', async (e) => {
+      if (touchStartTimer) {
+        clearTimeout(touchStartTimer);
+        touchStartTimer = null;
+      }
+
+      if (!isDragging || !touchDraggedCell) {
+        cleanupDrag();
+        return;
+      }
+
+      const touch = e.changedTouches[0];
+      const targetCell = getCellAtPoint(touch.clientX, touch.clientY);
+
+      if (!targetCell || targetCell === touchDraggedCell || targetCell.classList.contains('bingo-cell--free')) {
+        cleanupDrag();
+        return;
+      }
+
+      const fromPosition = parseInt(touchDraggedCell.dataset.position);
+      const toPosition = parseInt(targetCell.dataset.position);
+
+      cleanupDrag();
+
+      try {
+        // Use swap API - handles both moving to empty cells and swapping with filled cells
+        await API.cards.swap(this.currentCard.id, fromPosition, toPosition);
+
+        // Refresh the card (no need to re-setup drag/drop - event delegation still works)
+        const response = await API.cards.get(this.currentCard.id);
+        this.currentCard = response.card;
+        document.getElementById('bingo-grid').innerHTML = this.renderGrid();
+      } catch (error) {
+        this.toast(error.message, 'error');
+      }
+    });
+
+    grid.addEventListener('touchcancel', () => {
+      cleanupDrag();
     });
   },
 

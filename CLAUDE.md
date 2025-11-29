@@ -184,6 +184,13 @@ Tests use only Node.js built-in modules (no npm dependencies).
 - **Mobile** (≤900px): Single-column flexbox with reordered elements using CSS `order`. The `.editor-sidebar` uses `display: contents` to "unwrap" so its children participate in parent flex ordering. Order: input (1) → grid (2) → actions (3) → suggestions (4) → delete (5).
 - **Key classes**: `.editor-grid`, `.editor-sidebar`, `.editor-input`, `.editor-actions`, `.editor-suggestions`, `.editor-delete`
 
+**Drag and Drop**: Unfinalized cards support drag and drop to rearrange items:
+- **Desktop**: Native HTML5 drag and drop with `draggable="true"` attribute
+- **Mobile**: Touch events with 300ms long-press to initiate drag, visual clone follows finger
+- **API**: `POST /api/cards/{id}/swap` swaps two positions atomically (handles both filled and empty cells)
+- **CSS**: `.bingo-cell[draggable="true"]` has `user-select: none` and `touch-action: none` to prevent text selection
+- **Event delegation**: Listeners attached to grid element, not individual cells - no re-attachment needed after DOM updates
+
 ### Database Schema
 
 Core tables: `users`, `bingo_cards`, `bingo_items`, `friendships`, `reactions`, `suggestions`, `sessions`
@@ -203,7 +210,7 @@ Email Auth: `POST /api/auth/{verify-email,resend-verification,magic-link,forgot-
 
 Cards: `POST /api/cards`, `GET /api/cards`, `GET /api/cards/archive`, `GET /api/cards/export`, `GET /api/cards/{id}`, `GET /api/cards/{id}/stats`, `POST /api/cards/{id}/{items,shuffle,finalize}`, `PUT /api/cards/{id}/visibility`, `PUT /api/cards/visibility/bulk`, `PUT /api/cards/archive/bulk`, `DELETE /api/cards/bulk`
 
-Items: `PUT/DELETE /api/cards/{id}/items/{pos}`, `PUT /api/cards/{id}/items/{pos}/{complete,uncomplete,notes}`
+Items: `PUT/DELETE /api/cards/{id}/items/{pos}`, `POST /api/cards/{id}/swap`, `PUT /api/cards/{id}/items/{pos}/{complete,uncomplete,notes}`
 
 Suggestions: `GET /api/suggestions`, `GET /api/suggestions/categories`
 

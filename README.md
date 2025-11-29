@@ -12,6 +12,7 @@ A web application for creating and tracking annual Bingo cards. Create a 5x5 car
 ## Features
 
 - **Create Bingo Cards**: Build a personalized 5x5 bingo card with 24 goals (center is a free space)
+- **Drag and Drop**: Rearrange items on your card with drag and drop (desktop) or long-press and drag (mobile)
 - **Try Before Signing Up**: Create and customize a card anonymously, then sign up to save it
 - **Fill Empty Spaces**: Auto-fill empty card slots with random suggestions to get started quickly
 - **Curated Suggestions**: Browse 80+ goal suggestions across 8 categories to inspire your resolutions
@@ -201,6 +202,7 @@ nye_bingo/
 ### Items
 - `PUT /api/cards/{id}/items/{pos}` - Update item
 - `DELETE /api/cards/{id}/items/{pos}` - Remove item
+- `POST /api/cards/{id}/swap` - Swap two item positions
 - `PUT /api/cards/{id}/items/{pos}/complete` - Mark complete
 - `PUT /api/cards/{id}/items/{pos}/uncomplete` - Mark incomplete
 

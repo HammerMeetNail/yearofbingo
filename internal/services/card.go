@@ -287,6 +287,91 @@ func (s *CardService) UpdateItem(ctx context.Context, userID, cardID uuid.UUID, 
 	return item, nil
 }
 
+func (s *CardService) SwapItems(ctx context.Context, userID, cardID uuid.UUID, pos1, pos2 int) error {
+	// Validate positions
+	if !models.IsValidPosition(pos1) || !models.IsValidPosition(pos2) {
+		return ErrInvalidPosition
+	}
+	if pos1 == pos2 {
+		return nil // No-op
+	}
+
+	// Get and verify card ownership
+	card, err := s.GetByID(ctx, cardID)
+	if err != nil {
+		return err
+	}
+	if card.UserID != userID {
+		return ErrNotCardOwner
+	}
+	if card.IsFinalized {
+		return ErrCardFinalized
+	}
+
+	// Find items at both positions
+	var item1, item2 *models.BingoItem
+	for _, i := range card.Items {
+		if i.Position == pos1 {
+			item1 = &i
+		}
+		if i.Position == pos2 {
+			item2 = &i
+		}
+	}
+
+	// At least one item must exist
+	if item1 == nil && item2 == nil {
+		return ErrItemNotFound
+	}
+
+	// Use a transaction to swap atomically
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("starting transaction: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // Rollback is a no-op after commit
+
+	// Use a temporary position to avoid unique constraint violation
+	tempPos := -1
+
+	if item1 != nil && item2 != nil {
+		// Both positions occupied - swap them
+		// Move item1 to temp position
+		_, err = tx.Exec(ctx, "UPDATE bingo_items SET position = $1 WHERE id = $2", tempPos, item1.ID)
+		if err != nil {
+			return fmt.Errorf("moving item1 to temp: %w", err)
+		}
+		// Move item2 to pos1
+		_, err = tx.Exec(ctx, "UPDATE bingo_items SET position = $1 WHERE id = $2", pos1, item2.ID)
+		if err != nil {
+			return fmt.Errorf("moving item2 to pos1: %w", err)
+		}
+		// Move item1 from temp to pos2
+		_, err = tx.Exec(ctx, "UPDATE bingo_items SET position = $1 WHERE id = $2", pos2, item1.ID)
+		if err != nil {
+			return fmt.Errorf("moving item1 to pos2: %w", err)
+		}
+	} else if item1 != nil {
+		// Only item1 exists - move to pos2
+		_, err = tx.Exec(ctx, "UPDATE bingo_items SET position = $1 WHERE id = $2", pos2, item1.ID)
+		if err != nil {
+			return fmt.Errorf("moving item1 to pos2: %w", err)
+		}
+	} else {
+		// Only item2 exists - move to pos1
+		_, err = tx.Exec(ctx, "UPDATE bingo_items SET position = $1 WHERE id = $2", pos1, item2.ID)
+		if err != nil {
+			return fmt.Errorf("moving item2 to pos1: %w", err)
+		}
+	}
+
+	if err = tx.Commit(ctx); err != nil {
+		return fmt.Errorf("committing transaction: %w", err)
+	}
+
+	return nil
+}
+
 func (s *CardService) RemoveItem(ctx context.Context, userID, cardID uuid.UUID, position int) error {
 	// Get and verify card ownership
 	card, err := s.GetByID(ctx, cardID)

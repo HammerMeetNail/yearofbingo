@@ -14,6 +14,11 @@ const (
 	ItemsRequired = TotalSquares - 1    // 24 items (excluding free space)
 )
 
+// IsValidPosition returns true if the position is valid (0-24, excluding free space at 12)
+func IsValidPosition(pos int) bool {
+	return pos >= 0 && pos < TotalSquares && pos != FreeSpacePos
+}
+
 type BingoCard struct {
 	ID               uuid.UUID   `json:"id"`
 	UserID           uuid.UUID   `json:"user_id"`

@@ -146,6 +146,7 @@ func run() error {
 	mux.HandleFunc("PUT /api/cards/{id}/items/{pos}", cardHandler.UpdateItem)
 	mux.HandleFunc("DELETE /api/cards/{id}/items/{pos}", cardHandler.RemoveItem)
 	mux.HandleFunc("POST /api/cards/{id}/shuffle", cardHandler.Shuffle)
+	mux.HandleFunc("POST /api/cards/{id}/swap", cardHandler.SwapItems)
 	mux.HandleFunc("POST /api/cards/{id}/finalize", cardHandler.Finalize)
 	mux.HandleFunc("PUT /api/cards/{id}/items/{pos}/complete", cardHandler.CompleteItem)
 	mux.HandleFunc("PUT /api/cards/{id}/items/{pos}/uncomplete", cardHandler.UncompleteItem)

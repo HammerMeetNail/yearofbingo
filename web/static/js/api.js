@@ -219,6 +219,10 @@ const API = {
       return API.request('POST', `/api/cards/${cardId}/shuffle`);
     },
 
+    async swap(cardId, position1, position2) {
+      return API.request('POST', `/api/cards/${cardId}/swap`, { position1, position2 });
+    },
+
     async finalize(cardId, visibleToFriends = null) {
       const body = visibleToFriends !== null ? { visible_to_friends: visibleToFriends } : null;
       return API.request('POST', `/api/cards/${cardId}/finalize`, body);

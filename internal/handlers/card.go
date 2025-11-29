@@ -527,6 +527,60 @@ func (h *CardHandler) Shuffle(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, CardResponse{Card: card})
 }
 
+type SwapRequest struct {
+	Position1 int `json:"position1"`
+	Position2 int `json:"position2"`
+}
+
+func (h *CardHandler) SwapItems(w http.ResponseWriter, r *http.Request) {
+	user := GetUserFromContext(r.Context())
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "Authentication required")
+		return
+	}
+
+	cardID, err := parseCardID(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid card ID")
+		return
+	}
+
+	var req SwapRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	err = h.cardService.SwapItems(r.Context(), user.ID, cardID, req.Position1, req.Position2)
+	if errors.Is(err, services.ErrCardNotFound) {
+		writeError(w, http.StatusNotFound, "Card not found")
+		return
+	}
+	if errors.Is(err, services.ErrItemNotFound) {
+		writeError(w, http.StatusNotFound, "Item not found")
+		return
+	}
+	if errors.Is(err, services.ErrNotCardOwner) {
+		writeError(w, http.StatusForbidden, "Access denied")
+		return
+	}
+	if errors.Is(err, services.ErrCardFinalized) {
+		writeError(w, http.StatusBadRequest, "Card is finalized and cannot be modified")
+		return
+	}
+	if errors.Is(err, services.ErrInvalidPosition) {
+		writeError(w, http.StatusBadRequest, "Invalid position")
+		return
+	}
+	if err != nil {
+		log.Printf("Error swapping items: %v", err)
+		writeError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, CardResponse{Message: "Items swapped"})
+}
+
 func (h *CardHandler) Finalize(w http.ResponseWriter, r *http.Request) {
 	user := GetUserFromContext(r.Context())
 	if user == nil {
