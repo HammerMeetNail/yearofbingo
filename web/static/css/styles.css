@@ -2463,12 +2463,12 @@ a:hover {
   color: var(--color-text-primary);
 }
 
-.legal-content a {
+.legal-content a:not(.btn) {
   color: var(--color-gold);
   text-decoration: none;
 }
 
-.legal-content a:hover {
+.legal-content a:not(.btn):hover {
   text-decoration: underline;
 }
 
@@ -2517,4 +2517,23 @@ a:hover {
   .legal-intro {
     font-size: var(--font-size-base);
   }
+}
+
+/* About Page */
+.about-content h2:first-child {
+  margin-top: 0;
+}
+
+.about-content em {
+  color: var(--color-gold);
+  font-style: italic;
+}
+
+.about-cta {
+  margin-top: var(--spacing-2xl);
+  text-align: center;
+  padding: var(--spacing-xl);
+  background: rgba(255, 215, 0, 0.05);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 215, 0, 0.2);
 }

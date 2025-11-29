@@ -146,6 +146,7 @@ Tests use only Node.js built-in modules (no npm dependencies).
 - `renderFriends()` / `renderFriendCard()` - Friends list and viewing friend cards (with year selector for multiple cards)
 - `renderArchiveCard()` - View for individual archived cards with stats
 - `renderProfile()` - Account settings page (email verification status, privacy settings, change password)
+- `renderAbout()` - Origin story and open source info
 - `renderTerms()` / `renderPrivacy()` / `renderSecurity()` - Legal pages linked from footer
 - `renderSupport()` - Contact form for support requests
 - `openModal()` / `closeModal()` - Generic modal system
@@ -254,12 +255,14 @@ Phases 1-10 complete, ongoing enhancements:
 - Phase 9: CI/CD (GitHub Actions, container builds, security scanning)
 - Phase 10: Card Visibility (per-card privacy controls, bulk visibility management)
 - Phase 11: Legal Pages (Terms of Service, Privacy Policy, Security page in footer)
+- Phase 12: About Page (origin story, open source info, GitHub link)
 
 See `plans/bingo.md` for the full implementation plan and `plans/auth.md` for email authentication details.
 
-## Legal Pages
+## Footer Pages
 
-Footer contains links to three legal pages (`#terms`, `#privacy`, `#security`):
+Footer contains links to About and legal pages (`#about`, `#terms`, `#privacy`, `#security`):
+- **About** - Origin story, open source info, GitHub repository link
 - **Terms of Service** - Account usage, acceptable use, content ownership, disclaimers
 - **Privacy Policy** - Data collection, cookies (strictly necessary only), GDPR rights, international transfers
 - **Security** - Infrastructure security, application security measures, responsible disclosure

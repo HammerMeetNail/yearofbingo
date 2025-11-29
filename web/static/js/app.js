@@ -359,6 +359,9 @@ const App = {
       case 'profile':
         this.requireAuth(() => this.renderProfile(container));
         break;
+      case 'about':
+        this.renderAbout(container);
+        break;
       case 'terms':
         this.renderTerms(container);
         break;
@@ -3829,6 +3832,50 @@ const App = {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  },
+
+  // About Page
+  renderAbout(container) {
+    container.innerHTML = `
+      <div class="legal-page">
+        <h1>About Year of Bingo</h1>
+
+        <div class="legal-content about-content">
+          <h2>The Origin Story</h2>
+          <p>
+            On New Year's Eve 2024, my wife and I were celebrating and the topic of New Year's Resolutions came up. I pitched an idea for something different: What if we created Bingo cards and tracked 24 goals throughout the year instead of just a single resolution destined to be unachieved?
+          </p>
+          <p>
+            She loved the idea and quickly sketched out a Bingo card in a notebook and filled in the squares. I popped open Excel and filled out my card digitally.
+          </p>
+          <p>
+            Our goals ranged from <em>"Read 52 Books"</em> to <em>"Drive a Tank"</em> and we've been having a blast tracking and completing the goals in 2025.
+          </p>
+
+          <h2>Why This Site Exists</h2>
+          <p>
+            We've told the story to a bunch of people and everyone loves the idea, so I decided to make a simple webapp for everyone to create and share cards.
+          </p>
+          <p>
+            With the help of Claude Opus 4.5, <strong>yearofbingo.com</strong> was born.
+          </p>
+
+          <h2>Open Source</h2>
+          <p>
+            This project is open source and licensed under Apache 2. Check out the code on <a href="https://github.com/HammerMeetNail/yearofbingo" target="_blank" rel="noopener noreferrer">GitHub</a>.
+          </p>
+
+          <h2>Go Have Fun!</h2>
+          <p>
+            The site is free and easy to use. Create goals, share with your friends, do something you've always wanted to!
+          </p>
+
+          <div class="about-cta">
+            <a href="#register" class="btn btn-primary">Create Your Card</a>
+          </div>
+        </div>
+      </div>
+    `;
   },
 
   // Legal Pages

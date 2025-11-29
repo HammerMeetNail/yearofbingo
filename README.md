@@ -26,6 +26,7 @@ A web application for creating and tracking annual Bingo cards. Create a 5x5 car
 - **Profile Management**: View account settings, email verification status, privacy settings, and change password
 - **Contact Support**: Submit support requests via contact form with rate limiting protection
 - **Accessible Design**: Uses OpenDyslexic font for improved readability
+- **Open Source**: Apache 2.0 licensed with full source code available
 
 ## Tech Stack
 
