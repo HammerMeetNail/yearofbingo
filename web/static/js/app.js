@@ -79,11 +79,13 @@ const App = {
       nav.innerHTML = `
         <a href="#dashboard" class="nav-link">My Cards</a>
         <a href="#friends" class="nav-link">Friends</a>
+        <a href="#faq" class="nav-link">FAQ</a>
         <a href="#profile" class="nav-link">Hi, ${this.escapeHtml(this.user.username)}</a>
         <button class="btn btn-ghost" onclick="App.logout()">Logout</button>
       `;
     } else {
       nav.innerHTML = `
+        <a href="#faq" class="nav-link">FAQ</a>
         <a href="#login" class="btn btn-ghost">Login</a>
         <a href="#create" class="btn btn-primary">Get Started</a>
       `;
@@ -373,6 +375,9 @@ const App = {
         break;
       case 'support':
         this.renderSupport(container);
+        break;
+      case 'faq':
+        this.renderFAQ(container);
         break;
       default:
         this.renderHome(container);
@@ -2876,8 +2881,12 @@ const App = {
 
         <div class="friends-search card">
           <h3>Find Friends</h3>
+          <p class="text-muted" style="margin-bottom: 1rem;">
+            Search for friends by their username. Users must enable "Make my profile searchable"
+            in their <a href="#profile">Profile settings</a> to appear in search results.
+          </p>
           <div class="search-input-group">
-            <input type="text" id="friend-search" class="form-input" placeholder="Search by name or email...">
+            <input type="text" id="friend-search" class="form-input" placeholder="Search by username...">
             <button class="btn btn-primary" id="search-btn">Search</button>
           </div>
           <div id="search-results" class="search-results"></div>
@@ -3872,6 +3881,183 @@ const App = {
 
           <div class="about-cta">
             <a href="#register" class="btn btn-primary">Create Your Card</a>
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  renderFAQ(container) {
+    container.innerHTML = `
+      <div class="legal-page">
+        <h1>Frequently Asked Questions</h1>
+
+        <div class="legal-content faq-content">
+          <div class="faq-section">
+            <h2>Getting Started</h2>
+
+            <div class="faq-item">
+              <h3>What is Year of Bingo?</h3>
+              <p>
+                Year of Bingo is a fun way to track your annual goals! Instead of making a single New Year's resolution,
+                you create a 5x5 Bingo card with 24 personal goals (the center is a free space). Throughout the year,
+                you mark items complete and try to get Bingos!
+              </p>
+            </div>
+
+            <div class="faq-item">
+              <h3>How do I create a Bingo card?</h3>
+              <p>
+                Click "Get Started" or "Create New Card" to begin. You can type in your own goals, use our curated
+                suggestions by category, or use the "Fill Empty Spaces" button to randomly fill remaining slots.
+                Once you have 24 items, click "Finalize Card" to lock it in and start tracking!
+              </p>
+            </div>
+
+            <div class="faq-item">
+              <h3>Can I edit my card after finalizing it?</h3>
+              <p>
+                No, once a card is finalized, the layout is locked. This is intentional&mdash;it prevents moving items
+                around to get easier Bingos! You can still add notes and mark items as complete.
+              </p>
+            </div>
+
+            <div class="faq-item">
+              <h3>What counts as a Bingo?</h3>
+              <p>
+                A Bingo is 5 completed items in a row&mdash;horizontally, vertically, or diagonally. The center FREE space
+                counts as completed. With a full card, you can get up to 12 Bingos (5 rows + 5 columns + 2 diagonals).
+              </p>
+            </div>
+          </div>
+
+          <div class="faq-section">
+            <h2>Friends & Sharing</h2>
+
+            <div class="faq-item">
+              <h3>How do I find friends on the site?</h3>
+              <p>
+                Go to the <a href="#friends">Friends page</a> and search for friends by their <strong>username</strong>.
+                Note: Users must opt in to be searchable. If you can't find someone, ask them to enable
+                "Make my profile searchable" in their <a href="#profile">Profile settings</a>.
+              </p>
+            </div>
+
+            <div class="faq-item">
+              <h3>How do I let friends find me?</h3>
+              <p>
+                By default, your profile is private. To let friends find you, go to your <a href="#profile">Profile</a>
+                and enable "Make my profile searchable". Your username will then appear in search results.
+              </p>
+            </div>
+
+            <div class="faq-item">
+              <h3>Can I hide my card from friends?</h3>
+              <p>
+                Yes! Each card has a visibility setting. On the Dashboard, select cards and use Actions &rarr; "Make Private"
+                to hide them from friends. Private cards are completely hidden&mdash;friends won't even know they exist.
+              </p>
+            </div>
+
+            <div class="faq-item">
+              <h3>What are reactions?</h3>
+              <p>
+                When viewing a friend's card, you can react to their completed items with emojis to cheer them on!
+                It's a fun way to celebrate each other's accomplishments.
+              </p>
+            </div>
+          </div>
+
+          <div class="faq-section">
+            <h2>Managing Cards</h2>
+
+            <div class="faq-item">
+              <h3>Can I have multiple cards?</h3>
+              <p>
+                Yes! You can create multiple cards for different years or different themes. All your cards appear
+                on your Dashboard where you can sort, filter, and manage them.
+              </p>
+            </div>
+
+            <div class="faq-item">
+              <h3>What does archiving a card do?</h3>
+              <p>
+                Archiving is a way to organize your cards. Archived cards still appear on your Dashboard with an
+                "Archived" badge. You can archive/unarchive cards anytime using the Actions menu.
+              </p>
+            </div>
+
+            <div class="faq-item">
+              <h3>How do I export my cards?</h3>
+              <p>
+                On the Dashboard, select the cards you want to export using the checkboxes, then click
+                Actions &rarr; "Export Cards". You'll download a ZIP file containing CSV files for each selected card.
+              </p>
+            </div>
+
+            <div class="faq-item">
+              <h3>Can I delete a card?</h3>
+              <p>
+                Yes. On the Dashboard, select the card(s) you want to delete and use Actions &rarr; "Delete Cards".
+                This action is permanent and cannot be undone, so be careful!
+              </p>
+            </div>
+          </div>
+
+          <div class="faq-section">
+            <h2>Account & Privacy</h2>
+
+            <div class="faq-item">
+              <h3>Do I need to verify my email?</h3>
+              <p>
+                Email verification is optional but recommended. It allows you to use password reset and magic link login
+                if you forget your password. You can verify your email anytime from your <a href="#profile">Profile</a>.
+              </p>
+            </div>
+
+            <div class="faq-item">
+              <h3>What data do you collect?</h3>
+              <p>
+                We only collect what's necessary to run the service: your email, username, and the content of your
+                Bingo cards. We don't use tracking cookies or sell your data. See our <a href="#privacy">Privacy Policy</a>
+                for full details.
+              </p>
+            </div>
+
+            <div class="faq-item">
+              <h3>Can I delete my account?</h3>
+              <p>
+                If you need to delete your account, please <a href="#support">contact support</a> and we'll help you out.
+              </p>
+            </div>
+          </div>
+
+          <div class="faq-section">
+            <h2>Tips for Success</h2>
+
+            <div class="faq-item">
+              <h3>What makes a good Bingo card?</h3>
+              <p>
+                Mix it up! Include some easy wins (like "Try a new restaurant"), medium challenges
+                (like "Read 12 books"), and stretch goals (like "Run a marathon"). The variety keeps things
+                interesting all year long.
+              </p>
+            </div>
+
+            <div class="faq-item">
+              <h3>Any other tips?</h3>
+              <ul>
+                <li>Add notes to items to track your progress or memories</li>
+                <li>Share your card with friends for accountability</li>
+                <li>Check in monthly to review what you've accomplished</li>
+                <li>Don't stress about getting every Bingo&mdash;have fun with it!</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="faq-cta">
+            <p>Still have questions?</p>
+            <a href="#support" class="btn btn-primary">Contact Support</a>
           </div>
         </div>
       </div>

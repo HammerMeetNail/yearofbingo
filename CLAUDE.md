@@ -147,6 +147,7 @@ Tests use only Node.js built-in modules (no npm dependencies).
 - `renderArchiveCard()` - View for individual archived cards with stats
 - `renderProfile()` - Account settings page (email verification status, privacy settings, change password)
 - `renderAbout()` - Origin story and open source info
+- `renderFAQ()` - Frequently asked questions (linked from navbar)
 - `renderTerms()` / `renderPrivacy()` / `renderSecurity()` - Legal pages linked from footer
 - `renderSupport()` - Contact form for support requests
 - `openModal()` / `closeModal()` - Generic modal system
@@ -256,12 +257,14 @@ Phases 1-10 complete, ongoing enhancements:
 - Phase 10: Card Visibility (per-card privacy controls, bulk visibility management)
 - Phase 11: Legal Pages (Terms of Service, Privacy Policy, Security page in footer)
 - Phase 12: About Page (origin story, open source info, GitHub link)
+- Phase 13: FAQ Page (frequently asked questions in navbar, Friends page search improvements)
 
 See `plans/bingo.md` for the full implementation plan and `plans/auth.md` for email authentication details.
 
-## Footer Pages
+## Help & Legal Pages
 
-Footer contains links to About and legal pages (`#about`, `#terms`, `#privacy`, `#security`):
+Navbar contains FAQ link (`#faq`), footer contains About and legal pages (`#about`, `#terms`, `#privacy`, `#security`):
+- **FAQ** (navbar) - Frequently asked questions about using the site, finding friends, managing cards
 - **About** - Origin story, open source info, GitHub repository link
 - **Terms of Service** - Account usage, acceptable use, content ownership, disclaimers
 - **Privacy Policy** - Data collection, cookies (strictly necessary only), GDPR rights, international transfers

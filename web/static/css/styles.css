@@ -2537,3 +2537,65 @@ a:hover {
   border-radius: var(--radius-lg);
   border: 1px solid rgba(255, 215, 0, 0.2);
 }
+
+/* FAQ Page */
+.faq-content {
+  max-width: 800px;
+}
+
+.faq-section {
+  margin-bottom: var(--spacing-2xl);
+}
+
+.faq-section h2 {
+  color: var(--color-gold);
+  border-bottom: 1px solid rgba(255, 215, 0, 0.3);
+  padding-bottom: var(--spacing-sm);
+  margin-bottom: var(--spacing-lg);
+}
+
+.faq-item {
+  margin-bottom: var(--spacing-xl);
+}
+
+.faq-item h3 {
+  color: var(--color-text);
+  font-size: 1.1rem;
+  margin-bottom: var(--spacing-sm);
+}
+
+.faq-item p,
+.faq-item ul {
+  color: var(--color-text-muted);
+  line-height: 1.7;
+}
+
+.faq-item ul {
+  margin-left: var(--spacing-lg);
+}
+
+.faq-item ul li {
+  margin-bottom: var(--spacing-xs);
+}
+
+.faq-item a {
+  color: var(--color-gold);
+}
+
+.faq-item a:hover {
+  text-decoration: underline;
+}
+
+.faq-cta {
+  margin-top: var(--spacing-2xl);
+  text-align: center;
+  padding: var(--spacing-xl);
+  background: rgba(255, 215, 0, 0.05);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 215, 0, 0.2);
+}
+
+.faq-cta p {
+  margin-bottom: var(--spacing-md);
+  color: var(--color-text-muted);
+}
