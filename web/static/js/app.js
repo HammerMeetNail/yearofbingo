@@ -198,6 +198,13 @@ const App = {
 
     try {
       const response = await API.cards.create(year, title, category);
+
+      // Check for conflict
+      if (response.error === 'card_exists') {
+        this.showCreateCardConflictModal(response.existing_card, year, category);
+        return;
+      }
+
       this.currentCard = response.card;
       this.closeModal();
       window.location.hash = `#card/${response.card.id}`;
@@ -2422,6 +2429,145 @@ const App = {
       this.renderFinalizedCard(document.getElementById('main-container'));
       this.toast('Card replaced and finalized! Good luck with your goals! 🎉', 'success');
       this.confetti(50);
+    } catch (error) {
+      this.toast(error.message, 'error');
+    }
+  },
+
+  // Show conflict resolution modal for card creation (not anonymous import)
+  showCreateCardConflictModal(existingCard, year, category) {
+    const existingTitle = existingCard.title || `${existingCard.year} Bingo Card`;
+    const itemCount = existingCard.item_count || 0;
+    const isFinalized = existingCard.is_finalized ? 'finalized' : 'in progress';
+
+    // Store context for use in handlers
+    this.createConflictContext = { year, category };
+
+    let buttons = `
+      <button class="btn btn-secondary" onclick="App.handleCreateConflictGoToExisting('${existingCard.id}')">
+        Go to Existing Card
+      </button>
+      <button class="btn btn-primary" onclick="App.handleCreateConflictSaveAsNew()">
+        Create with Different Title
+      </button>`;
+
+    // Only offer replace for unfinalized cards
+    if (!existingCard.is_finalized) {
+      buttons += `
+        <button class="btn btn-ghost" style="color: var(--danger);" onclick="App.handleCreateConflictReplace('${existingCard.id}')">
+          Delete &amp; Create New
+        </button>`;
+    }
+
+    buttons += `
+      <button class="btn btn-ghost" onclick="App.closeModal()">
+        Cancel
+      </button>`;
+
+    this.openModal('Card Already Exists', `
+      <div class="conflict-modal">
+        <p style="margin-bottom: 1rem;">
+          You already have a <strong>${existingCard.year}</strong> card:
+        </p>
+        <div class="card" style="margin-bottom: 1.5rem; padding: 1rem;">
+          <strong>${this.escapeHtml(existingTitle)}</strong>
+          <p class="text-muted" style="margin: 0.25rem 0 0 0;">
+            ${itemCount} items, ${isFinalized}
+          </p>
+        </div>
+        <p style="margin-bottom: 1.5rem;">What would you like to do?</p>
+        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+          ${buttons}
+        </div>
+      </div>
+    `);
+  },
+
+  // Handle create conflict: go to existing card
+  handleCreateConflictGoToExisting(existingCardId) {
+    this.closeModal();
+    window.location.hash = `#card/${existingCardId}`;
+  },
+
+  // Handle create conflict: create with new title
+  handleCreateConflictSaveAsNew() {
+    const ctx = this.createConflictContext;
+    const suggestedTitle = `${ctx.year} Bingo Card (2)`;
+
+    this.openModal('Create with New Title', `
+      <form id="create-conflict-title-form" onsubmit="App.handleCreateConflictSaveAsNewSubmit(event)">
+        <div class="form-group">
+          <label class="form-label" for="create-conflict-title">Card Title</label>
+          <input type="text" id="create-conflict-title" class="form-input" required
+                 value="${this.escapeHtml(suggestedTitle)}"
+                 maxlength="100">
+          <small class="text-muted">Choose a unique title for your new card</small>
+        </div>
+        <div id="create-conflict-error" class="form-error hidden"></div>
+        <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+          <button type="button" class="btn btn-ghost" style="flex: 1;" onclick="App.closeModal()">
+            Cancel
+          </button>
+          <button type="submit" class="btn btn-primary" style="flex: 1;">
+            Create Card
+          </button>
+        </div>
+      </form>
+    `);
+  },
+
+  async handleCreateConflictSaveAsNewSubmit(event) {
+    event.preventDefault();
+
+    const newTitle = document.getElementById('create-conflict-title').value.trim();
+    const errorEl = document.getElementById('create-conflict-error');
+    const ctx = this.createConflictContext;
+
+    if (!newTitle) {
+      errorEl.textContent = 'Please enter a title';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+
+    try {
+      const response = await API.cards.create(ctx.year, newTitle, ctx.category);
+
+      if (response.error === 'card_exists') {
+        errorEl.textContent = 'A card with this title already exists. Please choose a different title.';
+        errorEl.classList.remove('hidden');
+        return;
+      }
+
+      this.currentCard = response.card;
+      this.closeModal();
+      window.location.hash = `#card/${response.card.id}`;
+      this.toast(`${newTitle} created!`, 'success');
+    } catch (error) {
+      errorEl.textContent = error.message;
+      errorEl.classList.remove('hidden');
+    }
+  },
+
+  // Handle create conflict: delete existing and create new
+  async handleCreateConflictReplace(existingCardId) {
+    if (!confirm('Are you sure you want to delete your existing card? This cannot be undone.')) {
+      return;
+    }
+
+    const ctx = this.createConflictContext;
+
+    try {
+      // Delete the existing card
+      await API.cards.deleteCard(existingCardId);
+
+      // Create the new card
+      const response = await API.cards.create(ctx.year, null, ctx.category);
+
+      this.currentCard = response.card;
+      this.closeModal();
+      window.location.hash = `#card/${response.card.id}`;
+      const cardName = `${ctx.year} Bingo Card`;
+      this.toast(`${cardName} created!`, 'success');
     } catch (error) {
       this.toast(error.message, 'error');
     }

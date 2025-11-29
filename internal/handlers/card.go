@@ -143,12 +143,42 @@ func (h *CardHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check for existing card for this year/title before attempting create
+	existingCard, err := h.cardService.CheckForConflict(r.Context(), user.ID, req.Year, req.Title)
+	if err != nil && !errors.Is(err, services.ErrCardNotFound) {
+		log.Printf("Error checking for conflict: %v", err)
+		writeError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+	if existingCard != nil {
+		// Return conflict response with existing card info
+		title := ""
+		if existingCard.Title != nil {
+			title = *existingCard.Title
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		json.NewEncoder(w).Encode(ImportCardResponse{
+			Error:   "card_exists",
+			Message: "You already have a card for this year",
+			ExistingCard: &ExistingCardInfo{
+				ID:          existingCard.ID.String(),
+				Title:       title,
+				Year:        existingCard.Year,
+				ItemCount:   len(existingCard.Items),
+				IsFinalized: existingCard.IsFinalized,
+			},
+		})
+		return
+	}
+
 	card, err := h.cardService.Create(r.Context(), models.CreateCardParams{
 		UserID:   user.ID,
 		Year:     req.Year,
 		Category: req.Category,
 		Title:    req.Title,
 	})
+	// These errors shouldn't happen since we checked above, but handle gracefully
 	if errors.Is(err, services.ErrCardAlreadyExists) {
 		writeError(w, http.StatusConflict, "You already have a card for this year. Give your new card a unique title.")
 		return
