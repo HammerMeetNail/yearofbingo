@@ -146,6 +146,7 @@ Tests use only Node.js built-in modules (no npm dependencies).
 - `renderFriends()` / `renderFriendCard()` - Friends list and viewing friend cards (with year selector for multiple cards)
 - `renderArchiveCard()` - View for individual archived cards with stats
 - `renderProfile()` - Account settings page (email verification status, privacy settings, change password)
+- `renderTerms()` / `renderPrivacy()` / `renderSecurity()` - Legal pages linked from footer
 - `openModal()` / `closeModal()` - Generic modal system
 - `fillEmptySpaces()` - Auto-fill empty card slots with random suggestions
 
@@ -249,8 +250,18 @@ Phases 1-10 complete, ongoing enhancements:
 - Phase 8: Polish & Production Readiness (security headers, compression, caching, logging, error pages, accessibility)
 - Phase 9: CI/CD (GitHub Actions, container builds, security scanning)
 - Phase 10: Card Visibility (per-card privacy controls, bulk visibility management)
+- Phase 11: Legal Pages (Terms of Service, Privacy Policy, Security page in footer)
 
 See `plans/bingo.md` for the full implementation plan and `plans/auth.md` for email authentication details.
+
+## Legal Pages
+
+Footer contains links to three legal pages (`#terms`, `#privacy`, `#security`):
+- **Terms of Service** - Account usage, acceptable use, content ownership, disclaimers
+- **Privacy Policy** - Data collection, cookies (strictly necessary only), GDPR rights, international transfers
+- **Security** - Infrastructure security, application security measures, responsible disclosure
+
+**Cookie Policy**: Only strictly necessary cookies are used (session authentication, CSRF protection, Cloudflare security). No tracking or advertising cookies. Cloudflare Web Analytics is cookie-free. No cookie consent banner required under GDPR.
 
 ## CI/CD (Phase 9)
 

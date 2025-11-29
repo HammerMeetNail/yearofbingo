@@ -359,6 +359,15 @@ const App = {
       case 'profile':
         this.requireAuth(() => this.renderProfile(container));
         break;
+      case 'terms':
+        this.renderTerms(container);
+        break;
+      case 'privacy':
+        this.renderPrivacy(container);
+        break;
+      case 'security':
+        this.renderSecurity(container);
+        break;
       default:
         this.renderHome(container);
     }
@@ -3817,6 +3826,357 @@ const App = {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  },
+
+  // Legal Pages
+  renderTerms(container) {
+    container.innerHTML = `
+      <div class="legal-page">
+        <h1>Terms of Service</h1>
+        <p class="legal-updated">Last Updated: November 29, 2025</p>
+
+        <div class="legal-content">
+          <p class="legal-intro">
+            Please read this agreement carefully before using Year of Bingo. By using Year of Bingo, you agree that your use is governed by this agreement. If you do not accept these terms, please do not use the service.
+          </p>
+
+          <h2>1. Overview</h2>
+          <p>
+            Year of Bingo ("Service," "we," "us," or "our") is a web application for creating and tracking annual bingo cards with personal goals. This Terms of Service Agreement ("Agreement") is between Year of Bingo and you ("you" or "User").
+          </p>
+
+          <h2>2. Your Account</h2>
+          <p>
+            To access certain features, you must create an account with a valid email address. You are responsible for maintaining the confidentiality of your password and account information. You are solely responsible for all activities that occur under your account.
+          </p>
+          <p>
+            You agree to:
+          </p>
+          <ul>
+            <li>Provide accurate account information</li>
+            <li>Keep your password secure and confidential</li>
+            <li>Notify us immediately of any unauthorized access</li>
+            <li>Not create multiple accounts to circumvent limitations</li>
+          </ul>
+
+          <h2>3. Acceptable Use</h2>
+          <p>
+            You agree to use the Service in accordance with all applicable laws and regulations. You will not:
+          </p>
+          <ul>
+            <li>Use the Service for any unlawful purpose</li>
+            <li>Interfere with or disrupt the Service or servers</li>
+            <li>Attempt to gain unauthorized access to any part of the Service</li>
+            <li>Upload content that is harmful, offensive, or infringes on others' rights</li>
+            <li>Use the Service to harass, abuse, or harm others</li>
+            <li>Impersonate any person or entity</li>
+          </ul>
+
+          <h2>4. Your Content</h2>
+          <p>
+            "Content" means any data, text, or information you submit to the Service, including bingo card items, notes, and profile information. You retain ownership of your Content. By submitting Content, you grant us a license to store, display, and process your Content solely for the purpose of providing the Service to you.
+          </p>
+          <p>
+            You are solely responsible for your Content and ensuring it complies with this Agreement and applicable laws. You represent that you have the right to submit any Content you provide.
+          </p>
+
+          <h2>5. Data Backup</h2>
+          <p>
+            You are responsible for maintaining backups of your Content. We are not responsible for any loss or deletion of Content. While we take reasonable measures to protect your data, we make no guarantees regarding data preservation.
+          </p>
+
+          <h2>6. Privacy</h2>
+          <p>
+            Your use of the Service is also governed by our <a href="#privacy">Privacy Policy</a>, which describes how we collect, use, and protect your personal data.
+          </p>
+
+          <h2>7. Changes to the Service</h2>
+          <p>
+            We may modify, suspend, or discontinue any part of the Service at any time. We will make reasonable efforts to notify users of significant changes, but are not obligated to do so.
+          </p>
+
+          <h2>8. Termination</h2>
+          <p>
+            You may stop using the Service at any time. We may suspend or terminate your access if we believe you have violated this Agreement or for any other reason at our discretion. Upon termination, your right to use the Service ceases immediately.
+          </p>
+
+          <h2>9. Disclaimer of Warranties</h2>
+          <p>
+            THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED. WE DO NOT WARRANT THAT THE SERVICE WILL BE UNINTERRUPTED, ERROR-FREE, OR SECURE. WE MAKE NO WARRANTIES REGARDING THE ACCURACY OR RELIABILITY OF ANY CONTENT OR INFORMATION OBTAINED THROUGH THE SERVICE.
+          </p>
+
+          <h2>10. Limitation of Liability</h2>
+          <p>
+            TO THE MAXIMUM EXTENT PERMITTED BY LAW, WE SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, INCLUDING BUT NOT LIMITED TO LOSS OF DATA, LOSS OF PROFITS, OR BUSINESS INTERRUPTION, ARISING FROM YOUR USE OF THE SERVICE.
+          </p>
+
+          <h2>11. Indemnification</h2>
+          <p>
+            You agree to indemnify and hold harmless Year of Bingo and its operators from any claims, damages, or expenses arising from your use of the Service, your Content, or your violation of this Agreement.
+          </p>
+
+          <h2>12. Changes to Terms</h2>
+          <p>
+            We may modify this Agreement at any time by posting the revised terms on our website. Your continued use of the Service after changes are posted constitutes acceptance of the modified terms. It is your responsibility to review this Agreement periodically.
+          </p>
+
+          <h2>13. Governing Law</h2>
+          <p>
+            This Agreement shall be governed by and construed in accordance with applicable law, without regard to conflict of law principles.
+          </p>
+
+          <h2>14. Contact</h2>
+          <p>
+            If you have questions about this Agreement, please contact us at <a href="mailto:support@yearofbingo.com">support@yearofbingo.com</a>.
+          </p>
+        </div>
+      </div>
+    `;
+  },
+
+  renderPrivacy(container) {
+    container.innerHTML = `
+      <div class="legal-page">
+        <h1>Privacy Policy</h1>
+        <p class="legal-updated">Last Updated: November 29, 2025</p>
+
+        <div class="legal-content">
+          <nav class="legal-toc">
+            <h3>Table of Contents</h3>
+            <ol>
+              <li><a href="#privacy-scope">Scope of this Privacy Policy</a></li>
+              <li><a href="#privacy-collect">Information We Collect</a></li>
+              <li><a href="#privacy-use">How We Use Your Information</a></li>
+              <li><a href="#privacy-share">How We Share Your Information</a></li>
+              <li><a href="#privacy-cookies">Cookies and Similar Technologies</a></li>
+              <li><a href="#privacy-rights">Your Rights and Choices</a></li>
+              <li><a href="#privacy-security">Security</a></li>
+              <li><a href="#privacy-children">Children's Privacy</a></li>
+              <li><a href="#privacy-international">International Data Transfers</a></li>
+              <li><a href="#privacy-changes">Changes to this Policy</a></li>
+              <li><a href="#privacy-contact">How to Contact Us</a></li>
+            </ol>
+          </nav>
+
+          <h2 id="privacy-scope">1. Scope of this Privacy Policy</h2>
+          <p>
+            This Privacy Policy applies to personal data collected by Year of Bingo through the yearofbingo.com website. It describes how we collect, use, and protect your personal information.
+          </p>
+          <p>
+            "Personal data" means any information that relates to an identified or identifiable person, such as a name, email address, or online identifier.
+          </p>
+
+          <h2 id="privacy-collect">2. Information We Collect</h2>
+          <p>We collect the following categories of personal data:</p>
+
+          <h3>Information You Provide</h3>
+          <ul>
+            <li><strong>Account information:</strong> Email address, username, and password when you create an account</li>
+            <li><strong>Content:</strong> Bingo card titles, items, notes, and completion status</li>
+            <li><strong>Social features:</strong> Friend connections and reactions to friends' cards</li>
+          </ul>
+
+          <h3>Information Collected Automatically</h3>
+          <ul>
+            <li><strong>Analytics data:</strong> We use Cloudflare Web Analytics, a privacy-focused analytics service that does not use cookies or collect personal data. It provides aggregate statistics about page views and visitor counts without tracking individual users.</li>
+            <li><strong>Log data:</strong> Our servers may log IP addresses, browser type, and access times for security and troubleshooting purposes. This data is not linked to your account and is retained for a limited period.</li>
+          </ul>
+
+          <h2 id="privacy-use">3. How We Use Your Information</h2>
+          <p>We use your personal data to:</p>
+          <ul>
+            <li><strong>Provide the Service:</strong> Create and manage your account, store your bingo cards, and enable social features</li>
+            <li><strong>Authenticate you:</strong> Verify your identity when you log in</li>
+            <li><strong>Communicate with you:</strong> Send password reset emails, verification emails, and important service announcements</li>
+            <li><strong>Improve the Service:</strong> Understand how the Service is used through aggregate analytics to improve functionality</li>
+            <li><strong>Ensure security:</strong> Detect and prevent fraud, abuse, and security incidents</li>
+          </ul>
+          <p>
+            We do not sell your personal data. We do not use your data for advertising or marketing purposes beyond the Service.
+          </p>
+
+          <h2 id="privacy-share">4. How We Share Your Information</h2>
+          <p>We share your information only in limited circumstances:</p>
+          <ul>
+            <li><strong>With your friends:</strong> If you add friends, they can see your bingo cards (unless you mark a card as private), including items and completion status</li>
+            <li><strong>Service providers:</strong> We use third-party services to help operate the Service (such as email delivery and hosting). These providers are contractually obligated to protect your data</li>
+            <li><strong>Legal requirements:</strong> We may disclose information if required by law, legal process, or government request</li>
+            <li><strong>Business transfers:</strong> In connection with a merger, acquisition, or sale of assets, your information may be transferred</li>
+          </ul>
+
+          <h2 id="privacy-cookies">5. Cookies and Similar Technologies</h2>
+          <p>
+            <strong>We use only strictly necessary cookies.</strong> These are essential for the Service to function and cannot be disabled.
+          </p>
+
+          <h3>Cookies We Use</h3>
+          <ul>
+            <li><strong>Session cookie:</strong> A secure, HTTP-only cookie that keeps you logged in. This cookie is essential for authentication and expires after 30 days of inactivity.</li>
+            <li><strong>CSRF token:</strong> A security cookie that protects against cross-site request forgery attacks.</li>
+          </ul>
+
+          <h3>Cloudflare Cookies</h3>
+          <p>
+            Our website is served through Cloudflare, which may set strictly necessary cookies for security purposes (such as bot detection). These cookies are essential for protecting the Service and do not track you for advertising purposes.
+          </p>
+
+          <h3>No Tracking Cookies</h3>
+          <p>
+            We do not use tracking cookies, advertising cookies, or third-party analytics that track individual users. Our analytics solution (Cloudflare Web Analytics) is cookie-free and privacy-focused.
+          </p>
+          <p>
+            <strong>Because we only use strictly necessary cookies, no cookie consent banner is required under GDPR or similar regulations.</strong>
+          </p>
+
+          <h2 id="privacy-rights">6. Your Rights and Choices</h2>
+          <p>
+            Depending on your location, you may have the following rights regarding your personal data:
+          </p>
+          <ul>
+            <li><strong>Access:</strong> Request information about the personal data we hold about you</li>
+            <li><strong>Correction:</strong> Request correction of inaccurate personal data</li>
+            <li><strong>Deletion:</strong> Request deletion of your personal data</li>
+            <li><strong>Portability:</strong> Request a copy of your data in a portable format</li>
+            <li><strong>Objection:</strong> Object to certain processing of your personal data</li>
+            <li><strong>Withdrawal of consent:</strong> Where processing is based on consent, withdraw that consent</li>
+          </ul>
+          <p>
+            To exercise these rights, please contact us at <a href="mailto:privacy@yearofbingo.com">privacy@yearofbingo.com</a>. We will respond to your request within the timeframe required by applicable law.
+          </p>
+
+          <h3>Account Settings</h3>
+          <p>
+            You can manage your account settings directly in the Service:
+          </p>
+          <ul>
+            <li>Update your email or password in your Profile</li>
+            <li>Control whether you appear in friend search (discoverability)</li>
+            <li>Set individual cards as private or visible to friends</li>
+            <li>Delete your account (this will permanently delete all your data)</li>
+          </ul>
+
+          <h2 id="privacy-security">7. Security</h2>
+          <p>
+            We implement appropriate technical and organizational measures to protect your personal data, including:
+          </p>
+          <ul>
+            <li>Encryption of data in transit (HTTPS/TLS)</li>
+            <li>Secure password hashing</li>
+            <li>HTTP-only, secure session cookies</li>
+            <li>CSRF protection</li>
+            <li>Regular security updates</li>
+          </ul>
+          <p>
+            For more details about our security practices, see our <a href="#security">Security page</a>.
+          </p>
+
+          <h2 id="privacy-children">8. Children's Privacy</h2>
+          <p>
+            Year of Bingo is not directed to children under 16 years of age. We do not knowingly collect personal data from children under 16. If you believe we have collected information from a child under 16, please contact us at <a href="mailto:privacy@yearofbingo.com">privacy@yearofbingo.com</a> and we will delete it.
+          </p>
+
+          <h2 id="privacy-international">9. International Data Transfers</h2>
+          <p>
+            Year of Bingo is operated from the United States. If you are accessing the Service from outside the United States, your data will be transferred to and processed in the United States. By using the Service, you consent to this transfer.
+          </p>
+          <p>
+            For users in the European Economic Area (EEA), United Kingdom, or Switzerland: We rely on your consent and, where applicable, standard contractual clauses approved by the European Commission to ensure adequate protection for your data.
+          </p>
+
+          <h2 id="privacy-changes">10. Changes to this Policy</h2>
+          <p>
+            We may update this Privacy Policy from time to time. We will notify you of material changes by posting a notice on our website. Your continued use of the Service after changes are posted constitutes acceptance of the updated policy.
+          </p>
+
+          <h2 id="privacy-contact">11. How to Contact Us</h2>
+          <p>
+            If you have questions about this Privacy Policy or wish to exercise your privacy rights, please contact us at:
+          </p>
+          <p>
+            <strong>Email:</strong> <a href="mailto:privacy@yearofbingo.com">privacy@yearofbingo.com</a>
+          </p>
+          <p>
+            For EEA residents, you also have the right to lodge a complaint with your local data protection authority.
+          </p>
+        </div>
+      </div>
+    `;
+  },
+
+  renderSecurity(container) {
+    container.innerHTML = `
+      <div class="legal-page">
+        <h1>Security</h1>
+        <p class="legal-updated">Last Updated: November 29, 2025</p>
+
+        <div class="legal-content">
+          <p class="legal-intro">
+            At Year of Bingo, we take the security of your data seriously. This page describes the security measures we implement to protect your information.
+          </p>
+
+          <h2>Infrastructure Security</h2>
+          <ul>
+            <li><strong>HTTPS Everywhere:</strong> All connections to Year of Bingo are encrypted using TLS (Transport Layer Security). We enforce HTTPS with HSTS (HTTP Strict Transport Security).</li>
+            <li><strong>Cloudflare Protection:</strong> Our service is protected by Cloudflare, which provides DDoS mitigation, bot protection, and a Web Application Firewall (WAF).</li>
+            <li><strong>Secure Hosting:</strong> Our infrastructure is hosted on secure, regularly updated systems.</li>
+          </ul>
+
+          <h2>Application Security</h2>
+          <ul>
+            <li><strong>Password Security:</strong> Passwords are hashed using industry-standard algorithms (bcrypt) and are never stored in plain text.</li>
+            <li><strong>Session Security:</strong> Session tokens are cryptographically random, stored securely, and transmitted only via HTTP-only, secure cookies.</li>
+            <li><strong>CSRF Protection:</strong> All state-changing requests are protected against Cross-Site Request Forgery attacks.</li>
+            <li><strong>Content Security Policy:</strong> We implement strict Content Security Policy (CSP) headers to prevent XSS attacks.</li>
+            <li><strong>Input Validation:</strong> All user input is validated and sanitized to prevent injection attacks.</li>
+          </ul>
+
+          <h2>Security Headers</h2>
+          <p>We implement the following security headers on all responses:</p>
+          <ul>
+            <li><strong>Content-Security-Policy:</strong> Restricts resource loading to trusted sources</li>
+            <li><strong>X-Frame-Options:</strong> Prevents clickjacking by blocking framing</li>
+            <li><strong>X-Content-Type-Options:</strong> Prevents MIME type sniffing</li>
+            <li><strong>Referrer-Policy:</strong> Controls referrer information sent with requests</li>
+            <li><strong>Permissions-Policy:</strong> Restricts browser feature access</li>
+          </ul>
+
+          <h2>Data Protection</h2>
+          <ul>
+            <li><strong>Encryption in Transit:</strong> All data transmitted between your browser and our servers is encrypted.</li>
+            <li><strong>Database Security:</strong> Our database is not directly accessible from the internet and requires authentication.</li>
+            <li><strong>Access Controls:</strong> Access to production systems is restricted to authorized personnel only.</li>
+          </ul>
+
+          <h2>Responsible Disclosure</h2>
+          <p>
+            We appreciate the security research community's efforts to improve the security of our service. If you discover a security vulnerability, please report it responsibly:
+          </p>
+          <ul>
+            <li><strong>Email:</strong> <a href="mailto:security@yearofbingo.com">security@yearofbingo.com</a></li>
+            <li>Please provide detailed information about the vulnerability</li>
+            <li>Allow reasonable time for us to address the issue before public disclosure</li>
+            <li>Do not access or modify other users' data</li>
+          </ul>
+
+          <h2>What We Ask of You</h2>
+          <p>
+            Security is a shared responsibility. We ask that you:
+          </p>
+          <ul>
+            <li>Use a strong, unique password for your account</li>
+            <li>Keep your password confidential and do not share it</li>
+            <li>Log out when using shared or public computers</li>
+            <li>Report any suspicious activity on your account immediately</li>
+            <li>Keep your browser and operating system up to date</li>
+          </ul>
+
+          <h2>Questions</h2>
+          <p>
+            If you have questions about our security practices, please contact us at <a href="mailto:security@yearofbingo.com">security@yearofbingo.com</a>.
+          </p>
+        </div>
+      </div>
+    `;
   },
 };
 
