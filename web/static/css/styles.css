@@ -126,6 +126,7 @@ html {
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
 }
 
 body {
@@ -135,6 +136,7 @@ body {
   color: var(--color-text-primary);
   background: var(--color-bg-primary);
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 /* Background with subtle gradient and stars */
@@ -241,6 +243,37 @@ a:hover {
   color: var(--color-text-primary);
 }
 
+.nav-menu {
+  display: contents;
+}
+
+/* Hamburger menu - hidden on desktop */
+.nav-hamburger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 32px;
+  height: 32px;
+  padding: 4px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.hamburger-line {
+  display: block;
+  width: 100%;
+  height: 2px;
+  background: var(--color-text-secondary);
+  border-radius: 1px;
+  transition: transform var(--transition-fast), opacity var(--transition-fast);
+}
+
+.nav-hamburger:hover .hamburger-line {
+  background: var(--color-text-primary);
+}
+
 /* Footer */
 .footer {
   background: var(--color-bg-secondary);
@@ -259,6 +292,13 @@ a:hover {
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
   justify-self: start;
+  margin-right: var(--spacing-lg);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.footer-text:hover {
+  color: var(--color-gold);
 }
 
 .footer-links {
@@ -283,6 +323,7 @@ a:hover {
   font-size: var(--font-size-sm);
   text-decoration: none;
   justify-self: end;
+  margin-left: var(--spacing-lg);
   transition: color var(--transition-fast);
 }
 
@@ -1111,6 +1152,74 @@ a:hover {
     padding: 0 var(--spacing-sm);
   }
 
+  /* Mobile navigation */
+  .nav {
+    position: relative;
+    gap: var(--spacing-sm);
+  }
+
+  .nav-hamburger {
+    display: flex;
+    order: 3;
+  }
+
+  .nav-link--primary {
+    order: 1;
+  }
+
+  .nav-auth-btn {
+    order: 2;
+  }
+
+  .nav-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: var(--spacing-sm);
+    background: var(--color-bg-secondary);
+    border: 1px solid rgba(255, 215, 0, 0.2);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-sm);
+    min-width: 180px;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  .nav--open .nav-menu {
+    display: flex;
+  }
+
+  .nav-menu .nav-link {
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-sm);
+  }
+
+  .nav-menu .nav-link:hover {
+    background: rgba(255, 215, 0, 0.1);
+  }
+
+  .nav-menu .btn {
+    width: 100%;
+    justify-content: flex-start;
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+
+  /* Hamburger animation when open */
+  .nav--open .hamburger-line:nth-child(1) {
+    transform: translateY(7px) rotate(45deg);
+  }
+
+  .nav--open .hamburger-line:nth-child(2) {
+    opacity: 0;
+  }
+
+  .nav--open .hamburger-line:nth-child(3) {
+    transform: translateY(-7px) rotate(-45deg);
+  }
+
   .bingo-grid {
     max-width: 100%;
   }
@@ -1154,11 +1263,6 @@ a:hover {
 
   .finalized-card-progress {
     padding: 0.5rem var(--spacing-sm);
-  }
-
-  .header-content {
-    flex-direction: column;
-    gap: var(--spacing-md);
   }
 
   .input-area {
@@ -1245,6 +1349,28 @@ a:hover {
 
   .category-tab {
     white-space: nowrap;
+  }
+
+  /* Footer stacked layout for small screens */
+  .footer-content {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-sm);
+    text-align: center;
+  }
+
+  .footer-text {
+    justify-self: center;
+    margin-right: 0;
+  }
+
+  .footer-links {
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+  }
+
+  .footer-support {
+    justify-self: center;
+    margin-left: 0;
   }
 }
 

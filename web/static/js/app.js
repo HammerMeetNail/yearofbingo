@@ -77,18 +77,51 @@ const App = {
 
     if (this.user) {
       nav.innerHTML = `
-        <a href="#dashboard" class="nav-link">My Cards</a>
-        <a href="#friends" class="nav-link">Friends</a>
-        <a href="#faq" class="nav-link">FAQ</a>
-        <a href="#profile" class="nav-link">Hi, ${this.escapeHtml(this.user.username)}</a>
-        <button class="btn btn-ghost" onclick="App.logout()">Logout</button>
+        <a href="#dashboard" class="nav-link nav-link--primary">My Cards</a>
+        <button class="nav-hamburger" onclick="App.toggleMobileMenu()" aria-label="Toggle menu" aria-expanded="false">
+          <span class="hamburger-line"></span>
+          <span class="hamburger-line"></span>
+          <span class="hamburger-line"></span>
+        </button>
+        <div class="nav-menu">
+          <a href="#profile" class="nav-link">Hi, ${this.escapeHtml(this.user.username)}</a>
+          <a href="#friends" class="nav-link">Friends</a>
+          <a href="#faq" class="nav-link">FAQ</a>
+          <button class="btn btn-ghost" onclick="App.logout()">Logout</button>
+        </div>
       `;
     } else {
       nav.innerHTML = `
-        <a href="#faq" class="nav-link">FAQ</a>
-        <a href="#login" class="btn btn-ghost">Login</a>
-        <a href="#create" class="btn btn-primary">Get Started</a>
+        <button class="nav-hamburger" onclick="App.toggleMobileMenu()" aria-label="Toggle menu" aria-expanded="false">
+          <span class="hamburger-line"></span>
+          <span class="hamburger-line"></span>
+          <span class="hamburger-line"></span>
+        </button>
+        <div class="nav-menu">
+          <a href="#faq" class="nav-link">FAQ</a>
+        </div>
+        <a href="#login" class="btn btn-ghost nav-auth-btn">Login</a>
+        <a href="#create" class="btn btn-primary nav-auth-btn">Get Started</a>
       `;
+    }
+  },
+
+  toggleMobileMenu() {
+    const nav = document.getElementById('nav');
+    const hamburger = nav?.querySelector('.nav-hamburger');
+    const menu = nav?.querySelector('.nav-menu');
+    if (!nav || !menu) return;
+
+    const isOpen = nav.classList.toggle('nav--open');
+    hamburger?.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  },
+
+  closeMobileMenu() {
+    const nav = document.getElementById('nav');
+    const hamburger = nav?.querySelector('.nav-hamburger');
+    if (nav) {
+      nav.classList.remove('nav--open');
+      hamburger?.setAttribute('aria-expanded', 'false');
     }
   },
 
@@ -297,6 +330,7 @@ const App = {
   },
 
   route() {
+    this.closeMobileMenu();
     const hash = window.location.hash.slice(1) || 'home';
     // Parse hash with query parameters: page?param=value
     const [pagePart, queryPart] = hash.split('?');
