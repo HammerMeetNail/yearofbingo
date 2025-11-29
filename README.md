@@ -366,6 +366,41 @@ golangci-lint run
 podman build -f Containerfile -t yearofbingo .
 ```
 
+### Secret Scanning
+
+The repository uses [Gitleaks](https://github.com/gitleaks/gitleaks) to prevent accidentally committing secrets:
+
+- **Pre-commit hook**: Scans staged files before each commit
+- **CI check**: Scans all changes in pull requests and pushes
+
+To set up the pre-commit hook after cloning:
+
+```bash
+# Install pre-commit (macOS)
+brew install pre-commit
+
+# Or with pip
+pip install pre-commit
+
+# Install the hooks
+pre-commit install
+```
+
+Gitleaks will now run automatically on every `git commit`. To test manually:
+
+```bash
+pre-commit run --all-files
+```
+
+### Path Filtering
+
+To avoid unnecessary builds and deploys, the CI pipeline uses path filtering:
+
+- **Always runs**: Secret scanning (gitleaks)
+- **Only on code changes**: Lint, test, build, and deploy jobs
+
+Documentation-only changes (README, markdown files, etc.) will not trigger builds or deployments.
+
 ## Security & Performance
 
 - **Security Headers**: CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy

@@ -334,12 +334,15 @@ Navbar contains FAQ link (`#faq`), footer contains About and legal pages (`#abou
 GitHub Actions workflow in `.github/workflows/ci.yaml`:
 
 **Pipeline stages:**
-1. **Lint** - golangci-lint with config in `.golangci.yaml`
-2. **Test (Go)** - `go test -v -race -coverprofile=coverage.out ./...`
-3. **Test (JS)** - `node web/static/js/tests/runner.js`
-4. **Build** - Compile binary, upload as artifact
-5. **Build Image** - Parallel builds on native runners (amd64 + arm64)
-6. **Scan & Push** - Trivy security scan, then push multi-arch manifest
+1. **Secret Scan** - Gitleaks scans for accidentally committed secrets (runs on ALL changes)
+2. **Lint** - golangci-lint with config in `.golangci.yaml`
+3. **Test (Go)** - `go test -v -race -coverprofile=coverage.out ./...`
+4. **Test (JS)** - `node web/static/js/tests/runner.js`
+5. **Build** - Compile binary, upload as artifact
+6. **Build Image** - Parallel builds on native runners (amd64 + arm64)
+7. **Scan & Push** - Trivy security scan, then push multi-arch manifest
+
+**Path filtering:** Lint, test, build, and deploy jobs only run when code changes. Documentation-only changes (README, markdown files) skip these jobs but still run secret scanning.
 
 **Container registry:** [quay.io/yearofbingo/yearofbingo](https://quay.io/repository/yearofbingo/yearofbingo)
 - Multi-arch: `linux/amd64` and `linux/arm64`
@@ -366,6 +369,20 @@ podman build -f Containerfile -t yearofbingo .
 # Run local dev build
 podman compose up
 ```
+
+**Secret scanning (pre-commit hook):**
+```bash
+# Install pre-commit (once)
+brew install pre-commit
+
+# Install hooks (run after cloning)
+pre-commit install
+
+# Test hook manually
+pre-commit run --all-files
+```
+
+Gitleaks runs automatically on every commit to prevent accidentally committing secrets. Configuration in `.pre-commit-config.yaml`.
 
 ## Security Features (Phase 8)
 

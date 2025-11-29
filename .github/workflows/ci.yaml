@@ -18,9 +18,52 @@ env:
   IMAGE_NAME: yearofbingo/yearofbingo
 
 jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for code changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - '**/*.go'
+              - 'go.mod'
+              - 'go.sum'
+              - 'web/**'
+              - 'migrations/**'
+              - 'Containerfile'
+              - 'compose*.yaml'
+              - '.github/workflows/**'
+              - 'Makefile'
+              - 'scripts/**'
+              - '.golangci.yaml'
+
+  secrets:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -38,6 +81,8 @@ jobs:
   test-go:
     name: Go Tests
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -69,6 +114,8 @@ jobs:
   test-js:
     name: JavaScript Tests
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -84,7 +131,8 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [lint, test-go, test-js]
+    needs: [changes, secrets, lint, test-go, test-js]
+    if: needs.changes.outputs.code == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -227,9 +275,10 @@ jobs:
   deploy:
     name: Deploy to Production
     runs-on: ubuntu-latest
-    needs: [scan-and-push]
+    needs: [changes, scan-and-push]
     if: |
       always() &&
+      (needs.changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch') &&
       (needs.scan-and-push.result == 'success' || needs.scan-and-push.result == 'skipped') &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       github.ref == 'refs/heads/main'
