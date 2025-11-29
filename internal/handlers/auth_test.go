@@ -99,11 +99,11 @@ func TestValidatePassword(t *testing.T) {
 
 // Mock services for testing
 type mockUserService struct {
-	createFunc           func(ctx context.Context, params models.CreateUserParams) (*models.User, error)
-	getByIDFunc          func(ctx context.Context, id uuid.UUID) (*models.User, error)
-	getByEmailFunc       func(ctx context.Context, email string) (*models.User, error)
-	updatePasswordFunc   func(ctx context.Context, userID uuid.UUID, newPasswordHash string) error
-	updateSearchableFunc func(ctx context.Context, userID uuid.UUID, searchable bool) error
+	createFunc            func(ctx context.Context, params models.CreateUserParams) (*models.User, error)
+	getByIDFunc           func(ctx context.Context, id uuid.UUID) (*models.User, error)
+	getByEmailFunc        func(ctx context.Context, email string) (*models.User, error)
+	updatePasswordFunc    func(ctx context.Context, userID uuid.UUID, newPasswordHash string) error
+	updateSearchableFunc  func(ctx context.Context, userID uuid.UUID, searchable bool) error
 	markEmailVerifiedFunc func(ctx context.Context, userID uuid.UUID) error
 }
 
@@ -188,46 +188,6 @@ func (m *mockAuthService) DeleteSession(ctx context.Context, token string) error
 func (m *mockAuthService) DeleteAllUserSessions(ctx context.Context, userID uuid.UUID) error {
 	if m.deleteAllUserSessionsFunc != nil {
 		return m.deleteAllUserSessionsFunc(ctx, userID)
-	}
-	return nil
-}
-
-// mockableAuthHandler wraps AuthHandler but uses mockable services
-type mockableAuthHandler struct {
-	userService  userServiceInterface
-	authService  authServiceInterface
-	emailService emailServiceInterface
-	secure       bool
-}
-
-type userServiceInterface interface {
-	Create(ctx context.Context, params models.CreateUserParams) (*models.User, error)
-	GetByID(ctx context.Context, id uuid.UUID) (*models.User, error)
-	GetByEmail(ctx context.Context, email string) (*models.User, error)
-	UpdatePassword(ctx context.Context, userID uuid.UUID, newPasswordHash string) error
-	UpdateSearchable(ctx context.Context, userID uuid.UUID, searchable bool) error
-	MarkEmailVerified(ctx context.Context, userID uuid.UUID) error
-}
-
-type authServiceInterface interface {
-	HashPassword(password string) (string, error)
-	VerifyPassword(hash, password string) bool
-	CreateSession(ctx context.Context, userID uuid.UUID) (string, error)
-	DeleteSession(ctx context.Context, token string) error
-	DeleteAllUserSessions(ctx context.Context, userID uuid.UUID) error
-}
-
-type emailServiceInterface interface {
-	SendVerificationEmail(ctx context.Context, userID uuid.UUID, email string) error
-}
-
-type mockEmailService struct {
-	sendVerificationEmailFunc func(ctx context.Context, userID uuid.UUID, email string) error
-}
-
-func (m *mockEmailService) SendVerificationEmail(ctx context.Context, userID uuid.UUID, email string) error {
-	if m.sendVerificationEmailFunc != nil {
-		return m.sendVerificationEmailFunc(ctx, userID, email)
 	}
 	return nil
 }

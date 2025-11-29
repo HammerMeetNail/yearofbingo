@@ -791,10 +791,10 @@ func TestParseCardID(t *testing.T) {
 
 func TestParsePosition(t *testing.T) {
 	tests := []struct {
-		name        string
-		path        string
-		wantPos     int
-		wantErr     bool
+		name    string
+		path    string
+		wantPos int
+		wantErr bool
 	}{
 		{
 			name:    "valid position",

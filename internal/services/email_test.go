@@ -135,7 +135,7 @@ func TestConsoleProvider_Send(t *testing.T) {
 func TestNewResendProvider(t *testing.T) {
 	provider := NewResendProvider("test_api_key")
 	if provider == nil {
-		t.Error("expected provider to be created")
+		t.Fatal("expected provider to be created")
 	}
 	if provider.client == nil {
 		t.Error("expected client to be initialized")
@@ -145,7 +145,7 @@ func TestNewResendProvider(t *testing.T) {
 func TestNewSMTPProvider(t *testing.T) {
 	provider := NewSMTPProvider("localhost", 1025)
 	if provider == nil {
-		t.Error("expected provider to be created")
+		t.Fatal("expected provider to be created")
 	}
 	if provider.host != "localhost" {
 		t.Errorf("expected host 'localhost', got %q", provider.host)
@@ -185,20 +185,6 @@ func TestEmailStruct(t *testing.T) {
 	if email.Subject != "Test Subject" {
 		t.Errorf("expected Subject 'Test Subject', got %q", email.Subject)
 	}
-}
-
-// mockEmailProvider for testing
-type mockEmailProvider struct {
-	sentEmails []*Email
-	shouldFail bool
-}
-
-func (m *mockEmailProvider) Send(ctx context.Context, email *Email) error {
-	if m.shouldFail {
-		return context.DeadlineExceeded
-	}
-	m.sentEmails = append(m.sentEmails, email)
-	return nil
 }
 
 func TestEmailRenderingFunctions(t *testing.T) {
