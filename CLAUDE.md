@@ -233,6 +233,56 @@ Server: `SERVER_HOST`, `SERVER_PORT`, `SERVER_SECURE`
 Database: `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_SSLMODE`
 Redis: `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_DB`
 Email: `EMAIL_PROVIDER`, `RESEND_API_KEY`, `EMAIL_FROM_ADDRESS`, `APP_BASE_URL`
+Backup: `BACKUP_ENCRYPTION_KEY`, `R2_BUCKET` (default: yearofbingo-backups)
+
+## Database Backups
+
+PostgreSQL backups are stored in Cloudflare R2 (S3-compatible, 10GB free tier). Redis is not backed up as it's only used for session caching with PostgreSQL fallback.
+
+**Retention:** R2 lifecycle policy protects backups from deletion for 30 days, then auto-deletes at 31 days. This prevents attackers from deleting backups if the server is compromised.
+
+**Backup scripts:**
+- `./scripts/backup.sh` - Create encrypted backup and upload to R2
+- `./scripts/restore.sh` - Download and restore from R2 backup
+- `./scripts/verify-backup.sh` - Verify backup can be restored (runs daily)
+- `./scripts/test-backup.sh` - Interactive backup test with detailed output
+
+**Automation:** Systemd timers run daily (see `cloud-init.yaml`):
+- 3:00 AM - Backup (`yearofbingo-backup.timer`)
+- 4:00 AM - Verification (`yearofbingo-verify-backup.timer`)
+
+**Verification:** If daily verification fails, an error file `BACKUP_VERIFICATION_FAILED_*.txt` is written to the R2 bucket with details. Check the bucket periodically or set up Cloudflare notifications.
+
+Check status:
+```bash
+systemctl status yearofbingo-backup.timer
+journalctl -u yearofbingo-backup.service
+```
+
+**Manual backup:**
+```bash
+./scripts/backup.sh
+```
+
+**Restore from backup:**
+```bash
+./scripts/restore.sh --list     # List available backups
+./scripts/restore.sh --latest   # Restore most recent
+./scripts/restore.sh <filename> # Restore specific backup
+```
+
+**Test backup integrity:**
+```bash
+./scripts/test-backup.sh --latest
+```
+
+**Security:** Backups are encrypted with GPG (AES-256) before upload. The `BACKUP_ENCRYPTION_KEY` must be stored securely and separately from backups.
+
+**Disaster Recovery:**
+1. Provision new server with `cloud-init.yaml`
+2. Run CI deploy (configures secrets and rclone)
+3. Start timers: `sudo systemctl start yearofbingo-backup.timer yearofbingo-verify-backup.timer`
+4. Restore: `./scripts/restore.sh --latest`
 
 ## Email Service
 
