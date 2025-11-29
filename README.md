@@ -12,12 +12,16 @@ A web application for creating and tracking annual Bingo cards. Create a 5x5 car
 ## Features
 
 - **Create Bingo Cards**: Build a personalized 5x5 bingo card with 24 goals (center is a free space)
+- **Try Before Signing Up**: Create and customize a card anonymously, then sign up to save it
+- **Fill Empty Spaces**: Auto-fill empty card slots with random suggestions to get started quickly
 - **Curated Suggestions**: Browse 80+ goal suggestions across 8 categories to inspire your resolutions
 - **Track Progress**: Mark goals complete with optional notes about how you achieved them
 - **Celebrate Wins**: Get notified when you complete a row, column, or diagonal bingo
 - **Social Features**: Add friends, view their cards, and react to their achievements with emojis
 - **Card Archive**: View past years' cards with completion statistics and bingo counts
 - **Export to CSV**: Download your cards as CSV files in a ZIP archive for backup or analysis
+- **Email Authentication**: Email verification, magic link login, and password reset
+- **Profile Management**: View account settings, email verification status, and change password
 - **Accessible Design**: Uses OpenDyslexic font for improved readability
 
 ## Tech Stack
@@ -152,6 +156,11 @@ nye_bingo/
 | `REDIS_PORT` | Redis port | `6379` |
 | `REDIS_PASSWORD` | Redis password | (empty) |
 | `REDIS_DB` | Redis database number | `0` |
+| `EMAIL_PROVIDER` | Email provider (resend, smtp, console) | `console` |
+| `RESEND_API_KEY` | Resend API key (for production) | - |
+| `SMTP_HOST` | SMTP host (for local dev with Mailpit) | `mailpit` |
+| `SMTP_PORT` | SMTP port | `1025` |
+| `APP_BASE_URL` | Application base URL for email links | `http://localhost:8080` |
 
 ## API Endpoints
 
@@ -160,6 +169,13 @@ nye_bingo/
 - `POST /api/auth/login` - Sign in
 - `POST /api/auth/logout` - Sign out
 - `GET /api/auth/me` - Get current user
+- `PUT /api/auth/change-password` - Change password
+- `POST /api/auth/verify-email` - Verify email with token
+- `POST /api/auth/resend-verification` - Resend verification email
+- `POST /api/auth/magic-link` - Request magic link email
+- `GET /api/auth/magic-link/verify` - Verify magic link token
+- `POST /api/auth/forgot-password` - Request password reset email
+- `POST /api/auth/reset-password` - Reset password with token
 
 ### Cards
 - `POST /api/cards` - Create new card

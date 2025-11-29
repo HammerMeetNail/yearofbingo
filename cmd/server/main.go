@@ -75,6 +75,7 @@ func run() error {
 	// Initialize services
 	userService := services.NewUserService(db.Pool)
 	authService := services.NewAuthService(db.Pool, redisDB.Client)
+	emailService := services.NewEmailService(&cfg.Email, db.Pool)
 	cardService := services.NewCardService(db.Pool)
 	suggestionService := services.NewSuggestionService(db.Pool)
 	friendService := services.NewFriendService(db.Pool)
@@ -82,7 +83,7 @@ func run() error {
 
 	// Initialize handlers
 	healthHandler := handlers.NewHealthHandler(db, redisDB)
-	authHandler := handlers.NewAuthHandler(userService, authService, cfg.Server.Secure)
+	authHandler := handlers.NewAuthHandler(userService, authService, emailService, cfg.Server.Secure)
 	cardHandler := handlers.NewCardHandler(cardService)
 	suggestionHandler := handlers.NewSuggestionHandler(suggestionService)
 	friendHandler := handlers.NewFriendHandler(friendService, cardService)
@@ -117,6 +118,12 @@ func run() error {
 	mux.HandleFunc("POST /api/auth/logout", authHandler.Logout)
 	mux.HandleFunc("GET /api/auth/me", authHandler.Me)
 	mux.HandleFunc("POST /api/auth/password", authHandler.ChangePassword)
+	mux.HandleFunc("POST /api/auth/verify-email", authHandler.VerifyEmail)
+	mux.HandleFunc("POST /api/auth/resend-verification", authHandler.ResendVerification)
+	mux.HandleFunc("POST /api/auth/magic-link", authHandler.MagicLink)
+	mux.HandleFunc("GET /api/auth/magic-link/verify", authHandler.MagicLinkVerify)
+	mux.HandleFunc("POST /api/auth/forgot-password", authHandler.ForgotPassword)
+	mux.HandleFunc("POST /api/auth/reset-password", authHandler.ResetPassword)
 
 	// Card endpoints
 	mux.HandleFunc("POST /api/cards", cardHandler.Create)

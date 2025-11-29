@@ -10,6 +10,7 @@ type Config struct {
 	Server   ServerConfig
 	Database DatabaseConfig
 	Redis    RedisConfig
+	Email    EmailConfig
 }
 
 type ServerConfig struct {
@@ -32,6 +33,17 @@ type RedisConfig struct {
 	Port     int
 	Password string
 	DB       int
+}
+
+type EmailConfig struct {
+	Provider     string // "resend", "smtp", "console"
+	FromAddress  string
+	FromName     string
+	BaseURL      string // Application base URL for links
+	ResendAPIKey string
+	// SMTP settings (for Mailpit in local dev)
+	SMTPHost string
+	SMTPPort int
 }
 
 func (d DatabaseConfig) DSN() string {
@@ -65,6 +77,15 @@ func Load() (*Config, error) {
 			Port:     getEnvInt("REDIS_PORT", 6379),
 			Password: getEnv("REDIS_PASSWORD", ""),
 			DB:       getEnvInt("REDIS_DB", 0),
+		},
+		Email: EmailConfig{
+			Provider:     getEnv("EMAIL_PROVIDER", "console"),
+			FromAddress:  getEnv("EMAIL_FROM_ADDRESS", "noreply@yearofbingo.com"),
+			FromName:     getEnv("EMAIL_FROM_NAME", "Year of Bingo"),
+			BaseURL:      getEnv("APP_BASE_URL", "http://localhost:8080"),
+			ResendAPIKey: getEnv("RESEND_API_KEY", ""),
+			SMTPHost:     getEnv("SMTP_HOST", "localhost"),
+			SMTPPort:     getEnvInt("SMTP_PORT", 1025),
 		},
 	}
 

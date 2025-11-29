@@ -138,11 +138,13 @@ Tests use only Node.js built-in modules (no npm dependencies).
 
 **App Object**: All frontend logic lives in global `App` object. Key methods:
 - `route()` - Hash-based routing, renders appropriate page
-- `renderFinalizedCard()` / `renderCardEditor()` - Card views
+- `renderFinalizedCard()` / `renderCardEditor()` - Card views (handles both authenticated and anonymous modes)
 - `showItemDetailModal()` - Modal for viewing/completing items
 - `renderFriends()` / `renderFriendCard()` - Friends list and viewing friend cards (with year selector for multiple cards)
 - `renderArchive()` / `renderArchiveCard()` - Archive views for past years
+- `renderProfile()` - Account settings page (email verification status, change password)
 - `openModal()` / `closeModal()` - Generic modal system
+- `fillEmptySpaces()` - Auto-fill empty card slots with random suggestions
 
 **API Object**: Wraps fetch calls with CSRF handling. Namespaced: `API.auth.*`, `API.cards.*`, `API.suggestions.*`, `API.friends.*`, `API.reactions.*`
 
@@ -162,15 +164,23 @@ Tests use only Node.js built-in modules (no npm dependencies).
 
 **Bingo Card Display**: Grid renders with B-I-N-G-O header row. Cell text is truncated with CSS line-clamp (4 lines desktop, 3 tablet, 2 mobile). Full text shown in modal on click. Finalized card view uses `.finalized-card-view` class with centered grid layout.
 
+**Card Editor Layout**: The unfinalized card editor uses `.card-editor-layout` with responsive behavior:
+- **Desktop** (>900px): Two-column CSS Grid - bingo grid on left (`.editor-grid`), sidebar on right (`.editor-sidebar`) containing input, action buttons, and suggestions. Sidebar has `margin-top` to align with first row of cells (below B-I-N-G-O header).
+- **Mobile** (≤900px): Single-column flexbox with reordered elements using CSS `order`. The `.editor-sidebar` uses `display: contents` to "unwrap" so its children participate in parent flex ordering. Order: input (1) → grid (2) → actions (3) → suggestions (4) → delete (5).
+- **Key classes**: `.editor-grid`, `.editor-sidebar`, `.editor-input`, `.editor-actions`, `.editor-suggestions`, `.editor-delete`
+
 ### Database Schema
 
 Core tables: `users`, `bingo_cards`, `bingo_items`, `friendships`, `reactions`, `suggestions`, `sessions`
+
+Email verification tables: `email_verification_tokens`, `magic_link_tokens`, `password_reset_tokens`
 
 Migrations in `migrations/` directory using numeric prefix ordering.
 
 ## API Routes
 
-Auth: `POST /api/auth/{register,login,logout}`, `GET /api/auth/me`
+Auth: `POST /api/auth/{register,login,logout}`, `GET /api/auth/me`, `POST /api/auth/password`
+Email Auth: `POST /api/auth/{verify-email,resend-verification,magic-link,forgot-password,reset-password}`, `GET /api/auth/magic-link/verify`
 
 Cards: `POST /api/cards`, `GET /api/cards`, `GET /api/cards/archive`, `GET /api/cards/export`, `GET /api/cards/{id}`, `GET /api/cards/{id}/stats`, `POST /api/cards/{id}/{items,shuffle,finalize}`
 
@@ -201,23 +211,30 @@ The application version is displayed in the footer and must be updated with each
 Server: `SERVER_HOST`, `SERVER_PORT`, `SERVER_SECURE`
 Database: `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_SSLMODE`
 Redis: `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_DB`
+Email: `EMAIL_PROVIDER`, `RESEND_API_KEY`, `EMAIL_FROM_ADDRESS`, `APP_BASE_URL`
+
+## Email Service
+
+**Provider**: [Resend](https://resend.com) - Domain verified for yearofbingo.com
+**Local Development**: Use Mailpit (SMTP capture) or console logging
+**See**: `plans/auth.md` for full email authentication implementation plan
 
 ## Implementation Status
 
-Phases 1-8.5 complete, Phase 9 in progress:
+Phases 1-9 complete, ongoing enhancements:
 - Phase 1: Foundation (Go project, PostgreSQL, Redis, migrations, Podman)
 - Phase 2: Authentication (register, login, sessions, CSRF)
+- Phase 2.5: Email Authentication (email verification, magic link login, password reset, profile page)
 - Phase 3: Bingo Card API (create, items, shuffle, finalize, suggestions)
 - Phase 4: Frontend Card Creation UI (SPA, grid, drag-drop, animations)
+- Phase 4.5: New User Experience (anonymous card creation, Fill Empty button)
 - Phase 5: Card Interaction (mark complete, notes, bingo detection)
 - Phase 6: Social Features (friends, shared card view, reactions)
 - Phase 7: Archive & History (past years cards, completion statistics, bingo counts)
 - Phase 8: Polish & Production Readiness (security headers, compression, caching, logging, error pages, accessibility)
-- Phase 9: CI/CD (GitHub Actions, container builds, security scanning) - **in progress**
+- Phase 9: CI/CD (GitHub Actions, container builds, security scanning)
 
-**Next: Phase 9.4+ (Deployment)** - Deployment manifests, environment configuration.
-
-See `plans/bingo.md` for the full implementation plan.
+See `plans/bingo.md` for the full implementation plan and `plans/auth.md` for email authentication details.
 
 ## CI/CD (Phase 9)
 

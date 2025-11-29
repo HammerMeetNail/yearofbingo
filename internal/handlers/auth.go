@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log"
@@ -20,16 +21,18 @@ const (
 )
 
 type AuthHandler struct {
-	userService *services.UserService
-	authService *services.AuthService
-	secure      bool // Use secure cookies (HTTPS only)
+	userService  *services.UserService
+	authService  *services.AuthService
+	emailService *services.EmailService
+	secure       bool // Use secure cookies (HTTPS only)
 }
 
-func NewAuthHandler(userService *services.UserService, authService *services.AuthService, secure bool) *AuthHandler {
+func NewAuthHandler(userService *services.UserService, authService *services.AuthService, emailService *services.EmailService, secure bool) *AuthHandler {
 	return &AuthHandler{
-		userService: userService,
-		authService: authService,
-		secure:      secure,
+		userService:  userService,
+		authService:  authService,
+		emailService: emailService,
+		secure:       secure,
 	}
 }
 
@@ -110,6 +113,16 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Error creating session: %v", err)
 		writeError(w, http.StatusInternalServerError, "Internal server error")
 		return
+	}
+
+	// Send verification email (non-blocking, don't fail registration if email fails)
+	// Use context.Background() since the request context will be canceled when the response is sent
+	if h.emailService != nil {
+		go func() {
+			if err := h.emailService.SendVerificationEmail(context.Background(), user.ID, user.Email); err != nil {
+				log.Printf("Error sending verification email: %v", err)
+			}
+		}()
 	}
 
 	h.setSessionCookie(w, token)
@@ -231,6 +244,214 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 
 	h.setSessionCookie(w, token)
 	writeJSON(w, http.StatusOK, AuthResponse{Message: "Password changed successfully"})
+}
+
+// VerifyEmail handles email verification via token
+func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	if req.Token == "" {
+		writeError(w, http.StatusBadRequest, "Token is required")
+		return
+	}
+
+	if err := h.emailService.VerifyEmail(r.Context(), req.Token); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"message": "Email verified successfully"})
+}
+
+// ResendVerification resends the verification email
+func (h *AuthHandler) ResendVerification(w http.ResponseWriter, r *http.Request) {
+	user := GetUserFromContext(r.Context())
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "Not authenticated")
+		return
+	}
+
+	if user.EmailVerified {
+		writeError(w, http.StatusBadRequest, "Email is already verified")
+		return
+	}
+
+	if err := h.emailService.SendVerificationEmail(r.Context(), user.ID, user.Email); err != nil {
+		log.Printf("Error sending verification email: %v", err)
+		writeError(w, http.StatusInternalServerError, "Failed to send verification email")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"message": "Verification email sent"})
+}
+
+// MagicLink sends a magic link for passwordless login
+func (h *AuthHandler) MagicLink(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Email string `json:"email"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+	if _, err := mail.ParseAddress(req.Email); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid email address")
+		return
+	}
+
+	// Check if user exists - but always return success to prevent email enumeration
+	user, err := h.userService.GetByEmail(r.Context(), req.Email)
+	if err == nil && user != nil {
+		// User exists, send magic link
+		if err := h.emailService.SendMagicLinkEmail(r.Context(), req.Email); err != nil {
+			log.Printf("Error sending magic link email: %v", err)
+		}
+	}
+
+	// Always return success to prevent email enumeration
+	writeJSON(w, http.StatusOK, map[string]string{"message": "If an account exists, a login link has been sent"})
+}
+
+// MagicLinkVerify verifies a magic link token and creates a session
+func (h *AuthHandler) MagicLinkVerify(w http.ResponseWriter, r *http.Request) {
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		writeError(w, http.StatusBadRequest, "Token is required")
+		return
+	}
+
+	email, err := h.emailService.VerifyMagicLink(r.Context(), token)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// Get or create user
+	user, err := h.userService.GetByEmail(r.Context(), email)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "User not found")
+		return
+	}
+
+	// Create session
+	sessionToken, err := h.authService.CreateSession(r.Context(), user.ID)
+	if err != nil {
+		log.Printf("Error creating session: %v", err)
+		writeError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	h.setSessionCookie(w, sessionToken)
+	writeJSON(w, http.StatusOK, AuthResponse{User: user})
+}
+
+// ForgotPassword sends a password reset email
+func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Email string `json:"email"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+	if _, err := mail.ParseAddress(req.Email); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid email address")
+		return
+	}
+
+	// Check if user exists - but always return success to prevent email enumeration
+	user, err := h.userService.GetByEmail(r.Context(), req.Email)
+	if err == nil && user != nil {
+		// User exists, send reset email
+		if err := h.emailService.SendPasswordResetEmail(r.Context(), user.ID, user.Email); err != nil {
+			log.Printf("Error sending password reset email: %v", err)
+		}
+	}
+
+	// Always return success to prevent email enumeration
+	writeJSON(w, http.StatusOK, map[string]string{"message": "If an account exists, reset instructions have been sent"})
+}
+
+// ResetPassword resets the password using a token
+func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Token    string `json:"token"`
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	if req.Token == "" {
+		writeError(w, http.StatusBadRequest, "Token is required")
+		return
+	}
+
+	// Validate new password
+	if err := validatePassword(req.Password); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// Verify token and get user ID
+	userID, err := h.emailService.VerifyPasswordResetToken(r.Context(), req.Token)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// Hash new password
+	passwordHash, err := h.authService.HashPassword(req.Password)
+	if err != nil {
+		log.Printf("Error hashing password: %v", err)
+		writeError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	// Update password
+	if err := h.userService.UpdatePassword(r.Context(), userID, passwordHash); err != nil {
+		log.Printf("Error updating password: %v", err)
+		writeError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	// Mark token as used
+	if err := h.emailService.MarkPasswordResetUsed(r.Context(), req.Token); err != nil {
+		log.Printf("Error marking reset token as used: %v", err)
+	}
+
+	// Invalidate all sessions
+	_ = h.authService.DeleteAllUserSessions(r.Context(), userID)
+
+	// Get user for response
+	user, err := h.userService.GetByID(r.Context(), userID)
+	if err != nil {
+		log.Printf("Error getting user: %v", err)
+		writeError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	// Create new session
+	sessionToken, err := h.authService.CreateSession(r.Context(), userID)
+	if err != nil {
+		log.Printf("Error creating session: %v", err)
+		writeError(w, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	h.setSessionCookie(w, sessionToken)
+	writeJSON(w, http.StatusOK, AuthResponse{User: user, Message: "Password reset successfully"})
 }
 
 func (h *AuthHandler) setSessionCookie(w http.ResponseWriter, token string) {
