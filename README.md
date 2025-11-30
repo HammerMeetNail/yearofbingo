@@ -142,7 +142,7 @@ nye_bingo/
 ├── scripts/             # Development and testing scripts
 ├── compose.yaml         # Container orchestration
 ├── Containerfile        # Container build instructions
-└── CLAUDE.md            # AI assistant guidance
+└── AGENTS.md            # AI assistant guidance
 ```
 
 ## Environment Variables

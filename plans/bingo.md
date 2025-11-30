@@ -508,7 +508,7 @@ node web/static/js/tests/runner.js
 - [x] Frontend test runner (browser-based HTML)
 - [x] API client tests
 - [x] App logic tests
-- [x] Test documentation in CLAUDE.md
+- [x] Test documentation in AGENTS.md
 
 ---
 

@@ -933,7 +933,7 @@ env:
 
 Add `HONEYCOMB_API_KEY` to GitHub repository secrets.
 
-### 5.6 Update CLAUDE.md
+### 5.6 Update AGENTS.md
 
 Add to Environment Variables section:
 
@@ -1106,7 +1106,7 @@ func TestTracingMiddleware(t *testing.T) {
 | `internal/logging/logger.go` | Add trace context to logs |
 | `internal/middleware/logging.go` | Add trace IDs to request logs |
 | `compose.yaml` | Add OTEL environment variables |
-| `CLAUDE.md` | Document new environment variables |
+| `AGENTS.md` | Document new environment variables |
 
 ---
 

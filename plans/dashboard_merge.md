@@ -166,7 +166,7 @@ Having both pages is redundant since all cards already appear in the dashboard. 
 - `web/templates/index.html` - Remove Archive nav link
 
 ### Documentation
-- `CLAUDE.md` - Update API routes, remove archive references
+- `AGENTS.md` - Update API routes, remove archive references
 
 ## Version
 This change warrants a minor version bump (new feature/UI redesign): **v0.9.0**
@@ -247,6 +247,6 @@ All phases completed with the following adjustments:
 - `web/templates/index.html` - Removed Archive nav, bumped version to v0.9.0
 
 **Documentation:**
-- `CLAUDE.md` - Updated API routes, added Card Archive section
+- `AGENTS.md` - Updated API routes, added Card Archive section
 - `README.md` - Updated features and API endpoints
 - `plans/dashboard_merge.md` - This file (implementation status)
