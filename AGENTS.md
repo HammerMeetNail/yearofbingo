@@ -220,6 +220,26 @@ Reactions: `POST/DELETE /api/items/{id}/react`, `GET /api/items/{id}/reactions`,
 
 Support: `POST /api/support`
 
+## API Documentation & Tokens
+
+The API is documented using OpenAPI 3.0 and available at `/api/docs` (Swagger UI).
+
+**Access**:
+- API access requires a Bearer token in the Authorization header.
+- Users generate tokens in their profile settings (`#profile`).
+- Tokens have scopes (`read`, `write`, `read_write`) and optional expiration.
+
+**Adding New Endpoints**:
+1. Implement the handler and register the route in `cmd/server/main.go`.
+2. Apply appropriate middleware: `requireRead`, `requireWrite`, or `requireSession` (for non-API routes).
+3. Update `web/static/openapi.yaml` to document the new endpoint, including request/response schemas and security requirements.
+4. Verify the documentation appears correctly in Swagger UI at `/api/docs`.
+
+**Swagger UI**:
+- Hosted at `/api/docs`
+- Assets (JS/CSS) vendorized in `web/static/swagger/` (no external CDN dependency)
+- Definition file: `web/static/openapi.yaml`
+
 ## Versioning & Releases
 
 The application version is displayed in the footer and must be updated with each release. The version number is located in `web/templates/index.html` in the footer element.
@@ -347,6 +367,7 @@ Phases 1-10 complete, ongoing enhancements:
 - Phase 11: Legal Pages (Terms of Service, Privacy Policy, Security page in footer)
 - Phase 12: About Page (origin story, open source info, GitHub link)
 - Phase 13: FAQ Page (frequently asked questions in navbar, Friends page search improvements)
+- Phase 14: Public API Access (API tokens, OpenAPI spec, Swagger UI)
 
 See `plans/bingo.md` for the full implementation plan and `plans/auth.md` for email authentication details.
 
@@ -357,8 +378,6 @@ The following plans are ready for implementation:
 - **`plans/tracing.md`** - OpenTelemetry tracing with Honeycomb (free tier). Adds distributed tracing, service-level instrumentation, database query tracing, and log correlation. 5 phases, can be done incrementally.
 
 - **`plans/increase_test_coverage_via_interfaces.md`** - Interface-based dependency injection to enable comprehensive unit testing. Introduces interfaces between handlers and services, enabling mock injection. Target: 70%+ handler coverage (currently ~31%).
-
-- **`plans/api.md`** - API token access for programmatic card management. Users generate tokens with read/write permissions and configurable expiration. Includes OpenAPI/Swagger documentation accessible from navbar.
 
 - **`plans/png.md`** - Shareable PNG images of bingo cards. Server-side generation using `fogleman/gg`, public share links with configurable expiration (default 18 months), OG meta tags for rich social previews. Users control whether completions are visible.
 

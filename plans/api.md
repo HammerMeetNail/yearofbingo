@@ -365,3 +365,28 @@ The OpenAPI spec should document:
 - OAuth2 for third-party app integrations
 - More granular scopes if needed
 - IP allowlisting for tokens
+
+---
+
+## Implementation Status: COMPLETED
+
+### Phase 1: Database & Models ✅
+- Created migration `000010_api_tokens.up.sql`
+- Created `ApiToken` model and service
+
+### Phase 2: Token Management API ✅
+- Implemented list, create, delete, delete all endpoints
+
+### Phase 3: Token Authentication Middleware ✅
+- Implemented `AuthMiddleware` updates for Bearer token
+- Added `RequireScope` and `RequireSession` helpers
+- Secured all endpoints in `main.go`
+
+### Phase 4: OpenAPI Documentation ✅
+- Created `openapi.yaml`
+- Added Swagger UI at `/api/docs`
+- Added API link to navbar
+
+### Phase 5: Token Management UI ✅
+- Added API Tokens section to Profile page
+- Added token creation and revocation UI

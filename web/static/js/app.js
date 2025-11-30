@@ -3619,6 +3619,20 @@ const App = {
           </div>
 
           <div class="card profile-section">
+            <h3>API Tokens</h3>
+            <div class="profile-tokens">
+              <p class="text-muted" style="margin-bottom: 1rem;">
+                Create API tokens to access your data programmatically.
+                <a href="/api/docs" target="_blank">View API Documentation</a>
+              </p>
+              <button class="btn btn-secondary btn-sm" onclick="App.showCreateTokenModal()">Create New Token</button>
+              <div id="api-tokens-list" class="tokens-list">
+                <div class="text-center"><div class="spinner spinner--small"></div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card profile-section">
             <h3>Account Actions</h3>
             <div class="profile-actions">
               <button class="btn btn-ghost" onclick="App.logout()">Sign Out</button>
@@ -3629,6 +3643,7 @@ const App = {
     `;
 
     this.setupProfileEvents();
+    this.loadApiTokens();
   },
 
   setupProfileEvents() {
@@ -3996,6 +4011,152 @@ const App = {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  },
+
+  async loadApiTokens() {
+    const listEl = document.getElementById('api-tokens-list');
+    if (!listEl) return;
+
+    try {
+      const response = await API.tokens.list();
+      const tokens = response.tokens || [];
+
+      if (tokens.length === 0) {
+        listEl.innerHTML = '<p class="text-muted" style="margin-top: 1rem;">No active tokens.</p>';
+        return;
+      }
+
+      listEl.innerHTML = tokens.map(token => `
+        <div class="token-item" style="padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 0.5rem; margin-top: 0.5rem; display: flex; justify-content: space-between; align-items: center;">
+          <div class="token-info">
+            <div style="font-weight: 500;">${this.escapeHtml(token.name)}</div>
+            <div class="token-meta text-muted" style="font-size: 0.85rem;">
+              <code>${this.escapeHtml(token.token_prefix)}...</code>
+              <span>•</span>
+              <span class="token-scope scope-${token.scope}">${token.scope.replace('_', ' & ')}</span>
+              <span>•</span>
+              <span>${token.expires_at ? 'Expires ' + new Date(token.expires_at).toLocaleDateString() : 'Never expires'}</span>
+            </div>
+            <div class="token-meta text-muted" style="font-size: 0.85rem;">
+              Last used: ${token.last_used_at ? new Date(token.last_used_at).toLocaleString() : 'Never'}
+            </div>
+          </div>
+          <button class="btn btn-ghost btn-sm" style="color: var(--danger);" onclick="App.deleteToken('${token.id}')" title="Revoke Token">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      `).join('');
+
+      // Add Revoke All button if tokens exist
+      if (tokens.length > 1) {
+          listEl.innerHTML += `
+            <div style="margin-top: 1rem; text-align: right;">
+                <button class="btn btn-ghost btn-sm" style="color: var(--danger);" onclick="App.revokeAllTokens()">Revoke All Tokens</button>
+            </div>
+          `;
+      }
+    } catch (error) {
+      listEl.innerHTML = `<p class="text-muted text-danger">Failed to load tokens: ${this.escapeHtml(error.message)}</p>`;
+    }
+  },
+
+  showCreateTokenModal() {
+    this.openModal('Create API Token', `
+      <form onsubmit="App.handleCreateToken(event)">
+        <div class="form-group">
+          <label for="token-name">Name</label>
+          <input type="text" id="token-name" class="form-input" required placeholder="e.g., Backup Script" maxlength="100">
+        </div>
+        <div class="form-group">
+          <label for="token-scope">Permissions</label>
+          <select id="token-scope" class="form-input">
+            <option value="read">Read Only</option>
+            <option value="write">Write Only</option>
+            <option value="read_write">Read & Write</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="token-expiry">Expiration</label>
+          <select id="token-expiry" class="form-input">
+            <option value="30">30 Days</option>
+            <option value="7">7 Days</option>
+            <option value="90">3 months</option>
+            <option value="365">1 year</option>
+            <option value="0">Never</option>
+          </select>
+        </div>
+        <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+          <button type="button" class="btn btn-ghost" onclick="App.closeModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Generate Token</button>
+        </div>
+      </form>
+    `);
+  },
+
+  async handleCreateToken(event) {
+    event.preventDefault();
+    const name = document.getElementById('token-name').value;
+    const scope = document.getElementById('token-scope').value;
+    const expiry = document.getElementById('token-expiry').value;
+
+    try {
+      const response = await API.tokens.create(name, scope, expiry);
+      this.closeModal();
+      this.showTokenCreatedModal(response.token, response.token_metadata);
+      this.loadApiTokens(); // Refresh list if visible
+    } catch (error) {
+      this.toast(error.message, 'error');
+    }
+  },
+
+  showTokenCreatedModal(token, meta) {
+    this.openModal('Token Generated', `
+      <div class="token-created-modal">
+        <p><strong>Save this token now!</strong> You won't be able to see it again.</p>
+        <div class="token-display" style="background: var(--surface-2); padding: 1rem; border-radius: 0.5rem; margin: 1rem 0; display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+          <code id="new-token" style="word-break: break-all;">${this.escapeHtml(token)}</code>
+          <button class="btn btn-secondary btn-sm" onclick="App.copyToClipboard('${this.escapeHtml(token)}')">Copy</button>
+        </div>
+        <p class="text-muted" style="margin-top: 1rem; font-size: 0.9rem;">
+          Use this token in the <code>Authorization</code> header:
+          <br>
+          <code style="display: block; background: var(--surface-2); padding: 0.5rem; margin-top: 0.5rem; border-radius: 0.25rem;">Authorization: Bearer ${this.escapeHtml(token.substring(0, 10))}...</code>
+        </p>
+        <div style="margin-top: 1.5rem; text-align: right;">
+          <button class="btn btn-primary" onclick="App.closeModal(); App.loadApiTokens();">Done</button>
+        </div>
+      </div>
+    `);
+  },
+
+  copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+      this.toast('Copied to clipboard', 'success');
+    }).catch(() => {
+      this.toast('Failed to copy', 'error');
+    });
+  },
+
+  async deleteToken(id) {
+    if (!confirm('Revoke this token? Any scripts using it will stop working.')) return;
+    try {
+      await API.tokens.delete(id);
+      this.toast('Token revoked', 'success');
+      this.loadApiTokens();
+    } catch (error) {
+      this.toast(error.message, 'error');
+    }
+  },
+
+  async revokeAllTokens() {
+    if (!confirm('Revoke ALL API tokens? This cannot be undone.')) return;
+    try {
+      await API.tokens.deleteAll();
+      this.toast('All tokens revoked', 'success');
+      this.loadApiTokens();
+    } catch (error) {
+      this.toast(error.message, 'error');
+    }
   },
 
   // Utilities

@@ -366,6 +366,29 @@ const API = {
     },
   },
 
+  // Token endpoints
+  tokens: {
+    async list() {
+      return API.request('GET', '/api/tokens');
+    },
+
+    async create(name, scope, expiresInDays) {
+      return API.request('POST', '/api/tokens', {
+        name,
+        scope,
+        expires_in_days: parseInt(expiresInDays, 10),
+      });
+    },
+
+    async delete(id) {
+      return API.request('DELETE', `/api/tokens/${id}`);
+    },
+
+    async deleteAll() {
+      return API.request('DELETE', '/api/tokens');
+    },
+  },
+
   // Support endpoint
   support: {
     async submit(email, category, message) {

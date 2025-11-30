@@ -14,6 +14,7 @@ import (
 	"github.com/HammerMeetNail/yearofbingo/internal/handlers"
 	"github.com/HammerMeetNail/yearofbingo/internal/logging"
 	"github.com/HammerMeetNail/yearofbingo/internal/middleware"
+	"github.com/HammerMeetNail/yearofbingo/internal/models"
 	"github.com/HammerMeetNail/yearofbingo/internal/services"
 )
 
@@ -80,6 +81,7 @@ func run() error {
 	suggestionService := services.NewSuggestionService(db.Pool)
 	friendService := services.NewFriendService(db.Pool)
 	reactionService := services.NewReactionService(db.Pool, friendService)
+	apiTokenService := services.NewApiTokenService(db.Pool)
 
 	// Initialize handlers
 	healthHandler := handlers.NewHealthHandler(db, redisDB)
@@ -89,18 +91,24 @@ func run() error {
 	friendHandler := handlers.NewFriendHandler(friendService, cardService)
 	reactionHandler := handlers.NewReactionHandler(reactionService)
 	supportHandler := handlers.NewSupportHandler(emailService, redisDB.Client)
+	apiTokenHandler := handlers.NewApiTokenHandler(apiTokenService)
 	pageHandler, err := handlers.NewPageHandler("web/templates")
 	if err != nil {
 		return fmt.Errorf("loading templates: %w", err)
 	}
 
 	// Initialize middleware
-	authMiddleware := middleware.NewAuthMiddleware(authService)
+	authMiddleware := middleware.NewAuthMiddleware(authService, userService, apiTokenService)
 	csrfMiddleware := middleware.NewCSRFMiddleware(cfg.Server.Secure)
 	securityHeaders := middleware.NewSecurityHeaders(cfg.Server.Secure)
 	cacheControl := middleware.NewCacheControl()
 	compress := middleware.NewCompress()
 	requestLogger := middleware.NewRequestLogger(logger)
+
+	// Helper middlewares for API token scope enforcement
+	requireRead := authMiddleware.RequireScope(models.ScopeRead)
+	requireWrite := authMiddleware.RequireScope(models.ScopeWrite)
+	requireSession := authMiddleware.RequireSession
 
 	// Set up router
 	mux := http.NewServeMux()
@@ -111,78 +119,87 @@ func run() error {
 	mux.HandleFunc("GET /live", healthHandler.Live)
 
 	// CSRF token endpoint
-	mux.HandleFunc("GET /api/csrf", csrfMiddleware.GetToken)
+	mux.Handle("GET /api/csrf", requireSession(http.HandlerFunc(csrfMiddleware.GetToken)))
 
 	// Auth endpoints
-	mux.HandleFunc("POST /api/auth/register", authHandler.Register)
-	mux.HandleFunc("POST /api/auth/login", authHandler.Login)
-	mux.HandleFunc("POST /api/auth/logout", authHandler.Logout)
-	mux.HandleFunc("GET /api/auth/me", authHandler.Me)
-	mux.HandleFunc("POST /api/auth/password", authHandler.ChangePassword)
-	mux.HandleFunc("POST /api/auth/verify-email", authHandler.VerifyEmail)
-	mux.HandleFunc("POST /api/auth/resend-verification", authHandler.ResendVerification)
-	mux.HandleFunc("POST /api/auth/magic-link", authHandler.MagicLink)
-	mux.HandleFunc("GET /api/auth/magic-link/verify", authHandler.MagicLinkVerify)
-	mux.HandleFunc("POST /api/auth/forgot-password", authHandler.ForgotPassword)
-	mux.HandleFunc("POST /api/auth/reset-password", authHandler.ResetPassword)
-	mux.HandleFunc("PUT /api/auth/searchable", authHandler.UpdateSearchable)
+	mux.Handle("POST /api/auth/register", requireSession(http.HandlerFunc(authHandler.Register)))
+	mux.Handle("POST /api/auth/login", requireSession(http.HandlerFunc(authHandler.Login)))
+	mux.Handle("POST /api/auth/logout", requireSession(http.HandlerFunc(authHandler.Logout)))
+	mux.Handle("GET /api/auth/me", requireRead(http.HandlerFunc(authHandler.Me)))
+	mux.Handle("POST /api/auth/password", requireSession(http.HandlerFunc(authHandler.ChangePassword)))
+	mux.Handle("POST /api/auth/verify-email", requireSession(http.HandlerFunc(authHandler.VerifyEmail)))
+	mux.Handle("POST /api/auth/resend-verification", requireSession(http.HandlerFunc(authHandler.ResendVerification)))
+	mux.Handle("POST /api/auth/magic-link", requireSession(http.HandlerFunc(authHandler.MagicLink)))
+	mux.Handle("GET /api/auth/magic-link/verify", requireSession(http.HandlerFunc(authHandler.MagicLinkVerify)))
+	mux.Handle("POST /api/auth/forgot-password", requireSession(http.HandlerFunc(authHandler.ForgotPassword)))
+	mux.Handle("POST /api/auth/reset-password", requireSession(http.HandlerFunc(authHandler.ResetPassword)))
+	mux.Handle("PUT /api/auth/searchable", requireSession(http.HandlerFunc(authHandler.UpdateSearchable)))
+
+	// API Token endpoints
+	mux.Handle("GET /api/tokens", requireSession(http.HandlerFunc(apiTokenHandler.List)))
+	mux.Handle("POST /api/tokens", requireSession(http.HandlerFunc(apiTokenHandler.Create)))
+	mux.Handle("DELETE /api/tokens/{id}", requireSession(http.HandlerFunc(apiTokenHandler.Delete)))
+	mux.Handle("DELETE /api/tokens", requireSession(http.HandlerFunc(apiTokenHandler.DeleteAll)))
 
 	// Card endpoints
-	mux.HandleFunc("POST /api/cards", cardHandler.Create)
-	mux.HandleFunc("GET /api/cards", cardHandler.List)
-	mux.HandleFunc("GET /api/cards/archive", cardHandler.Archive)
-	mux.HandleFunc("GET /api/cards/categories", cardHandler.GetCategories)
-	mux.HandleFunc("GET /api/cards/export", cardHandler.ListExportable)
-	mux.HandleFunc("POST /api/cards/import", cardHandler.Import)
-	mux.HandleFunc("PUT /api/cards/visibility/bulk", cardHandler.BulkUpdateVisibility)
-	mux.HandleFunc("DELETE /api/cards/bulk", cardHandler.BulkDelete)
-	mux.HandleFunc("PUT /api/cards/archive/bulk", cardHandler.BulkUpdateArchive)
-	mux.HandleFunc("GET /api/cards/{id}", cardHandler.Get)
-	mux.HandleFunc("DELETE /api/cards/{id}", cardHandler.Delete)
-	mux.HandleFunc("GET /api/cards/{id}/stats", cardHandler.Stats)
-	mux.HandleFunc("PUT /api/cards/{id}/meta", cardHandler.UpdateMeta)
-	mux.HandleFunc("PUT /api/cards/{id}/visibility", cardHandler.UpdateVisibility)
-	mux.HandleFunc("POST /api/cards/{id}/items", cardHandler.AddItem)
-	mux.HandleFunc("PUT /api/cards/{id}/items/{pos}", cardHandler.UpdateItem)
-	mux.HandleFunc("DELETE /api/cards/{id}/items/{pos}", cardHandler.RemoveItem)
-	mux.HandleFunc("POST /api/cards/{id}/shuffle", cardHandler.Shuffle)
-	mux.HandleFunc("POST /api/cards/{id}/swap", cardHandler.SwapItems)
-	mux.HandleFunc("POST /api/cards/{id}/finalize", cardHandler.Finalize)
-	mux.HandleFunc("PUT /api/cards/{id}/items/{pos}/complete", cardHandler.CompleteItem)
-	mux.HandleFunc("PUT /api/cards/{id}/items/{pos}/uncomplete", cardHandler.UncompleteItem)
-	mux.HandleFunc("PUT /api/cards/{id}/items/{pos}/notes", cardHandler.UpdateNotes)
+	mux.Handle("POST /api/cards", requireWrite(http.HandlerFunc(cardHandler.Create)))
+	mux.Handle("GET /api/cards", requireRead(http.HandlerFunc(cardHandler.List)))
+	mux.Handle("GET /api/cards/archive", requireSession(http.HandlerFunc(cardHandler.Archive)))
+	mux.Handle("GET /api/cards/categories", requireRead(http.HandlerFunc(cardHandler.GetCategories)))
+	mux.Handle("GET /api/cards/export", requireSession(http.HandlerFunc(cardHandler.ListExportable)))
+	mux.Handle("POST /api/cards/import", requireSession(http.HandlerFunc(cardHandler.Import)))
+	mux.Handle("PUT /api/cards/visibility/bulk", requireSession(http.HandlerFunc(cardHandler.BulkUpdateVisibility)))
+	mux.Handle("DELETE /api/cards/bulk", requireSession(http.HandlerFunc(cardHandler.BulkDelete)))
+	mux.Handle("PUT /api/cards/archive/bulk", requireSession(http.HandlerFunc(cardHandler.BulkUpdateArchive)))
+	mux.Handle("GET /api/cards/{id}", requireRead(http.HandlerFunc(cardHandler.Get)))
+	mux.Handle("DELETE /api/cards/{id}", requireSession(http.HandlerFunc(cardHandler.Delete)))
+	mux.Handle("GET /api/cards/{id}/stats", requireRead(http.HandlerFunc(cardHandler.Stats)))
+	mux.Handle("PUT /api/cards/{id}/meta", requireSession(http.HandlerFunc(cardHandler.UpdateMeta)))
+	mux.Handle("PUT /api/cards/{id}/visibility", requireSession(http.HandlerFunc(cardHandler.UpdateVisibility)))
+	mux.Handle("POST /api/cards/{id}/items", requireWrite(http.HandlerFunc(cardHandler.AddItem)))
+	mux.Handle("PUT /api/cards/{id}/items/{pos}", requireWrite(http.HandlerFunc(cardHandler.UpdateItem)))
+	mux.Handle("DELETE /api/cards/{id}/items/{pos}", requireWrite(http.HandlerFunc(cardHandler.RemoveItem)))
+	mux.Handle("POST /api/cards/{id}/shuffle", requireWrite(http.HandlerFunc(cardHandler.Shuffle)))
+	mux.Handle("POST /api/cards/{id}/swap", requireWrite(http.HandlerFunc(cardHandler.SwapItems)))
+	mux.Handle("POST /api/cards/{id}/finalize", requireWrite(http.HandlerFunc(cardHandler.Finalize)))
+	mux.Handle("PUT /api/cards/{id}/items/{pos}/complete", requireWrite(http.HandlerFunc(cardHandler.CompleteItem)))
+	mux.Handle("PUT /api/cards/{id}/items/{pos}/uncomplete", requireWrite(http.HandlerFunc(cardHandler.UncompleteItem)))
+	mux.Handle("PUT /api/cards/{id}/items/{pos}/notes", requireWrite(http.HandlerFunc(cardHandler.UpdateNotes)))
 
 	// Suggestion endpoints
-	mux.HandleFunc("GET /api/suggestions", suggestionHandler.GetAll)
-	mux.HandleFunc("GET /api/suggestions/categories", suggestionHandler.GetCategories)
+	mux.Handle("GET /api/suggestions", requireRead(http.HandlerFunc(suggestionHandler.GetAll)))
+	mux.Handle("GET /api/suggestions/categories", requireRead(http.HandlerFunc(suggestionHandler.GetCategories)))
 
 	// Friend endpoints
-	mux.HandleFunc("GET /api/friends", friendHandler.List)
-	mux.HandleFunc("GET /api/friends/search", friendHandler.Search)
-	mux.HandleFunc("POST /api/friends/request", friendHandler.SendRequest)
-	mux.HandleFunc("PUT /api/friends/{id}/accept", friendHandler.AcceptRequest)
-	mux.HandleFunc("PUT /api/friends/{id}/reject", friendHandler.RejectRequest)
-	mux.HandleFunc("DELETE /api/friends/{id}", friendHandler.Remove)
-	mux.HandleFunc("DELETE /api/friends/{id}/cancel", friendHandler.CancelRequest)
-	mux.HandleFunc("GET /api/friends/{id}/card", friendHandler.GetFriendCard)
-	mux.HandleFunc("GET /api/friends/{id}/cards", friendHandler.GetFriendCards)
+	mux.Handle("GET /api/friends", requireSession(http.HandlerFunc(friendHandler.List)))
+	mux.Handle("GET /api/friends/search", requireSession(http.HandlerFunc(friendHandler.Search)))
+	mux.Handle("POST /api/friends/request", requireSession(http.HandlerFunc(friendHandler.SendRequest)))
+	mux.Handle("PUT /api/friends/{id}/accept", requireSession(http.HandlerFunc(friendHandler.AcceptRequest)))
+	mux.Handle("PUT /api/friends/{id}/reject", requireSession(http.HandlerFunc(friendHandler.RejectRequest)))
+	mux.Handle("DELETE /api/friends/{id}", requireSession(http.HandlerFunc(friendHandler.Remove)))
+	mux.Handle("DELETE /api/friends/{id}/cancel", requireSession(http.HandlerFunc(friendHandler.CancelRequest)))
+	mux.Handle("GET /api/friends/{id}/card", requireSession(http.HandlerFunc(friendHandler.GetFriendCard)))
+	mux.Handle("GET /api/friends/{id}/cards", requireSession(http.HandlerFunc(friendHandler.GetFriendCards)))
 
 	// Reaction endpoints
-	mux.HandleFunc("POST /api/items/{id}/react", reactionHandler.AddReaction)
-	mux.HandleFunc("DELETE /api/items/{id}/react", reactionHandler.RemoveReaction)
-	mux.HandleFunc("GET /api/items/{id}/reactions", reactionHandler.GetReactions)
-	mux.HandleFunc("GET /api/reactions/emojis", reactionHandler.GetAllowedEmojis)
+	mux.Handle("POST /api/items/{id}/react", requireSession(http.HandlerFunc(reactionHandler.AddReaction)))
+	mux.Handle("DELETE /api/items/{id}/react", requireSession(http.HandlerFunc(reactionHandler.RemoveReaction)))
+	mux.Handle("GET /api/items/{id}/reactions", requireSession(http.HandlerFunc(reactionHandler.GetReactions)))
+	mux.Handle("GET /api/reactions/emojis", requireSession(http.HandlerFunc(reactionHandler.GetAllowedEmojis)))
 
 	// Support endpoint
-	mux.HandleFunc("POST /api/support", supportHandler.Submit)
+	mux.Handle("POST /api/support", requireSession(http.HandlerFunc(supportHandler.Submit)))
 
 	// Static files
 	fs := http.FileServer(http.Dir("web/static"))
 	mux.Handle("GET /static/", http.StripPrefix("/static/", fs))
 
+	// API Docs redirect
+	mux.Handle("GET /api/docs", http.RedirectHandler("/static/swagger/index.html", http.StatusFound))
+
 	// SPA route - serve index.html for the root path
 	// Hash-based routing (#home, #login, etc.) is handled client-side
-	mux.HandleFunc("GET /{$}", pageHandler.Index)
+	mux.Handle("GET /{$}", requireSession(http.HandlerFunc(pageHandler.Index)))
 
 	// Build middleware chain (order matters: outermost first)
 	var handler http.Handler = mux

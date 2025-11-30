@@ -25,6 +25,7 @@ A web application for creating and tracking annual Bingo cards. Create a 5x5 car
 - **Export to CSV**: Select cards on the dashboard and export them as CSV files in a ZIP archive
 - **Email Authentication**: Email verification, magic link login, and password reset
 - **Profile Management**: View account settings, email verification status, privacy settings, and change password
+- **Public API**: Generate API tokens to access your data programmatically with full Swagger documentation
 - **Contact Support**: Submit support requests via contact form with rate limiting protection
 - **FAQ**: Comprehensive help documentation answering common questions
 - **Accessible Design**: Uses OpenDyslexic font for improved readability
@@ -225,8 +226,19 @@ nye_bingo/
 - `DELETE /api/items/{id}/react` - Remove reaction
 - `GET /api/items/{id}/reactions` - Get item reactions
 
+### Docs
+- `GET /api/docs` - Swagger API documentation
+
 ### Support
 - `POST /api/support` - Submit support request (rate limited: 5/hour per IP)
+
+### API Access
+
+Programmatic access is available via Bearer tokens.
+
+1. Generate a token in your Profile settings
+2. Use the token in the `Authorization` header: `Authorization: Bearer yob_abc...`
+3. Full interactive documentation available at `/api/docs`
 
 ## Scripts
 
