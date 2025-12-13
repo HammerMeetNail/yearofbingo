@@ -132,8 +132,18 @@ const AIWizard = {
     
     const category = document.getElementById('ai-category').value;
     const focus = document.getElementById('ai-focus').value;
-    const difficulty = document.querySelector('input[name="difficulty"]:checked').value;
-    const budget = document.querySelector('input[name="budget"]:checked').value;
+    const difficultyRadio = document.querySelector('input[name="difficulty"]:checked');
+    const budgetRadio = document.querySelector('input[name="budget"]:checked');
+    if (!difficultyRadio) {
+      App.toast('Please select a difficulty level.', 'error');
+      return;
+    }
+    if (!budgetRadio) {
+      App.toast('Please select a budget.', 'error');
+      return;
+    }
+    const difficulty = difficultyRadio.value;
+    const budget = budgetRadio.value;
     const context = document.getElementById('ai-context').value;
 
     this.state.inputs = { category, focus, difficulty, budget, context };
@@ -280,26 +290,43 @@ const AIWizard = {
         })
       );
 
-      const failures = results.filter(r => r.status === 'rejected');
+      const failures = results
+        .map((r, i) => ({ index: i, status: r.status, reason: r.reason, goal: goalsToAdd[i] }))
+        .filter(r => r.status === 'rejected');
       if (failures.length === 0) {
-        return;
+	        return;
       }
 
+      console.error('Failed to add the following goals:', failures.map(f => ({
+        index: f.index,
+        goal: f.goal,
+        reason: f.reason
+      })));
+
       const successes = results
-        .filter(r => r.status === 'fulfilled')
-        .map(r => r.value);
+        .map((r, i) => ({ r, i }))
+        .filter(({ r }) => r.status === 'fulfilled')
+        .map(({ r, i }) => ({ ...r.value, index: i, goal: goalsToAdd[i] }));
 
       const rollbackResults = await Promise.allSettled(
         successes.map(({ pos }) => API.cards.removeItem(cardId, pos))
       );
 
-      const rollbackFailures = rollbackResults.filter(r => r.status === 'rejected');
+      const rollbackFailures = rollbackResults
+        .map((r, i) => ({ status: r.status, reason: r.reason, pos: successes[i].pos, goal: successes[i].goal }))
+        .filter(r => r.status === 'rejected');
       if (rollbackFailures.length > 0) {
         console.error('Rollback failed for some items:', rollbackFailures);
         throw new Error('Failed to add some goals. Rollback was attempted but failed for some items. Please refresh the card and verify its contents.');
       }
 
-      throw new Error('Failed to add some goals. Please try again.');
+      const maxToShow = 3;
+      const failedPreview = failures
+        .slice(0, maxToShow)
+        .map(f => `"${f.goal}"`)
+        .join(', ');
+      const suffix = failures.length > maxToShow ? ` (and ${failures.length - maxToShow} more)` : '';
+      throw new Error(`Failed to add some goals: ${failedPreview}${suffix}. Please try again.`);
   }
 };
 

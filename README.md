@@ -233,7 +233,7 @@ nye_bingo/
 - `POST /api/support` - Submit support request (rate limited: 5/hour per IP)
 
 ### AI
-- `POST /api/ai/generate` - Generate AI goals (session cookie required; API tokens not allowed; rate limited: 10/hour in production, 100/hour in development)
+- `POST /api/ai/generate` - Generate AI goals (session cookie required; API tokens not allowed; rate limited: 10/hour per user in production, 100/hour per user in development)
 
 ### API Access
 
