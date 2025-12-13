@@ -34,7 +34,7 @@ func (m *MockAIService) ConsumeUnverifiedFreeGeneration(ctx context.Context, use
 
 func TestGenerate(t *testing.T) {
 	// Setup common variables
-	validBody := map[string]string{
+	validBody := map[string]any{
 		"category":   "hobbies",
 		"focus":      "cooking",
 		"difficulty": "medium",
@@ -61,6 +61,64 @@ func TestGenerate(t *testing.T) {
 				}
 			},
 			expectedStatus: http.StatusOK,
+		},
+		{
+			name:        "Success (Count defaults to 24)",
+			requestBody: validBody,
+			user:        &models.User{ID: uuid.New(), EmailVerified: true},
+			mockSetup: func() *MockAIService {
+				return &MockAIService{
+					GenerateGoalsFunc: func(ctx context.Context, userID uuid.UUID, prompt ai.GoalPrompt) ([]string, ai.UsageStats, error) {
+						if prompt.Count != 24 {
+							t.Fatalf("expected count 24, got %d", prompt.Count)
+						}
+						return []string{"Goal 1", "Goal 2"}, ai.UsageStats{}, nil
+					},
+				}
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name: "Success (Count passed through)",
+			requestBody: map[string]any{
+				"category":   "hobbies",
+				"focus":      "cooking",
+				"difficulty": "medium",
+				"budget":     "low",
+				"context":    "none",
+				"count":      5,
+			},
+			user: &models.User{ID: uuid.New(), EmailVerified: true},
+			mockSetup: func() *MockAIService {
+				return &MockAIService{
+					GenerateGoalsFunc: func(ctx context.Context, userID uuid.UUID, prompt ai.GoalPrompt) ([]string, ai.UsageStats, error) {
+						if prompt.Count != 5 {
+							t.Fatalf("expected count 5, got %d", prompt.Count)
+						}
+						return []string{"Goal 1", "Goal 2"}, ai.UsageStats{}, nil
+					},
+				}
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name: "Invalid Input - Count",
+			requestBody: map[string]any{
+				"category":   "hobbies",
+				"difficulty": "medium",
+				"budget":     "low",
+				"count":      25,
+			},
+			user: &models.User{ID: uuid.New(), EmailVerified: true},
+			mockSetup: func() *MockAIService {
+				return &MockAIService{
+					GenerateGoalsFunc: func(ctx context.Context, userID uuid.UUID, prompt ai.GoalPrompt) ([]string, ai.UsageStats, error) {
+						t.Fatal("GenerateGoals should not be called when count is invalid")
+						return nil, ai.UsageStats{}, nil
+					},
+				}
+			},
+			expectedStatus: http.StatusBadRequest,
 		},
 		{
 			name:        "Success (Unverified consumes quota)",
@@ -106,7 +164,7 @@ func TestGenerate(t *testing.T) {
 		},
 		{
 			name: "Invalid Input - Category",
-			requestBody: map[string]string{
+			requestBody: map[string]any{
 				"category":   "invalid",
 				"difficulty": "medium",
 				"budget":     "low",
@@ -119,7 +177,7 @@ func TestGenerate(t *testing.T) {
 		},
 		{
 			name: "Invalid Input - Missing Difficulty",
-			requestBody: map[string]string{
+			requestBody: map[string]any{
 				"category": "hobbies",
 				"budget":   "low",
 			},

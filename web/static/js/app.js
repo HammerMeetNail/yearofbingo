@@ -1778,7 +1778,7 @@ const App = {
 
           ${isAnon ? `
             <div class="editor-delete">
-              <button class="btn btn-ghost" style="color: var(--danger);" onclick="App.confirmDeleteAnonymousCard()">
+              <button class="btn btn-ghost" style="color: var(--color-danger);" onclick="App.confirmDeleteAnonymousCard()">
                 Delete Card
               </button>
             </div>
@@ -1801,7 +1801,7 @@ const App = {
         </p>
         <div style="display: flex; gap: 1rem; justify-content: flex-end;">
           <button class="btn btn-ghost" onclick="App.closeModal()">Cancel</button>
-          <button class="btn btn-primary" style="background: var(--danger); border-color: var(--danger);" onclick="App.clearCardItems()">Clear All</button>
+          <button class="btn btn-primary" style="background: var(--color-danger); border-color: var(--color-danger);" onclick="App.clearCardItems()">Clear All</button>
         </div>
       </div>
     `);
@@ -1816,44 +1816,44 @@ const App = {
 
     try {
       if (this.isAnonymousMode) {
-        AnonymousCard.clearItems();
+        const ok = AnonymousCard.clearItems();
+        if (!ok) {
+          throw new Error('No card found to clear.');
+        }
+        const anonCard = AnonymousCard.get();
+        this.currentCard = this.convertAnonymousCardToAppFormat(anonCard);
       } else {
         await Promise.all(items.map(item => API.cards.removeItem(this.currentCard.id, item.position)));
+        this.currentCard.items = [];
       }
 
-      this.currentCard.items = [];
       this.usedSuggestions = new Set();
 
-      document.querySelectorAll('#bingo-grid .bingo-cell').forEach((cell) => {
-        if (cell.classList.contains('bingo-cell--free')) return;
-        cell.className = 'bingo-cell bingo-cell--empty';
-        cell.removeAttribute('data-item-id');
-        cell.removeAttribute('draggable');
-        cell.innerHTML = '';
-      });
-
-      document.querySelector('.progress-fill').style.width = '0%';
-      document.querySelector('.progress-text').textContent = '0/24 items added';
-
-      document.getElementById('item-input').disabled = false;
-      document.getElementById('add-btn').disabled = false;
-      document.getElementById('fill-empty-btn').disabled = false;
-      const clearBtn = document.getElementById('clear-btn');
-      if (clearBtn) clearBtn.disabled = true;
-      const aiBtn = document.getElementById('ai-btn');
-      if (aiBtn) aiBtn.disabled = false;
-      document.querySelector('[onclick="App.shuffleCard()"]').disabled = true;
-      document.querySelector('[onclick="App.finalizeCard()"]').disabled = true;
-
-      const activeTab = document.querySelector('.category-tab--active');
-      if (activeTab) {
-        document.getElementById('suggestions-list').innerHTML = this.renderSuggestions(activeTab.dataset.category);
-      }
-
       this.closeModal();
+      const container = document.getElementById('main-container');
+      if (container) {
+        this.renderCardEditor(container);
+      }
       this.toast('Card cleared', 'success');
     } catch (error) {
       this.toast(error.message, 'error');
+
+      if (!this.isAnonymousMode && this.currentCard?.id) {
+        try {
+          const response = await API.cards.get(this.currentCard.id);
+          if (response?.card) {
+            this.currentCard = response.card;
+            this.usedSuggestions = new Set((this.currentCard.items || []).map(i => (i.content || '').toLowerCase()));
+            this.closeModal();
+            const container = document.getElementById('main-container');
+            if (container) {
+              this.renderCardEditor(container);
+            }
+          }
+        } catch (refreshError) {
+          this.toast('Failed to refresh card state: ' + refreshError.message, 'error');
+        }
+      }
     }
   },
 
@@ -3017,7 +3017,7 @@ const App = {
           <button class="btn btn-primary" onclick="App.handleConflictSaveAsNew()">
             Save as New Card (with different title)
           </button>
-          <button class="btn btn-ghost" style="color: var(--danger);" onclick="App.handleConflictReplace('${existingCard.id}')">
+          <button class="btn btn-ghost" style="color: var(--color-danger);" onclick="App.handleConflictReplace('${existingCard.id}')">
             Replace Existing Card
           </button>
           <button class="btn btn-ghost" onclick="App.closeModal()">
@@ -3151,7 +3151,7 @@ const App = {
     // Only offer replace for unfinalized cards
     if (!existingCard.is_finalized) {
       buttons += `
-        <button class="btn btn-ghost" style="color: var(--danger);" onclick="App.handleCreateConflictReplace('${existingCard.id}')">
+        <button class="btn btn-ghost" style="color: var(--color-danger);" onclick="App.handleCreateConflictReplace('${existingCard.id}')">
           Delete &amp; Create New
         </button>`;
     }
@@ -4313,7 +4313,7 @@ const App = {
               Last used: ${token.last_used_at ? new Date(token.last_used_at).toLocaleString() : 'Never'}
             </div>
           </div>
-          <button class="btn btn-ghost btn-sm" style="color: var(--danger);" onclick="App.deleteToken('${token.id}')" title="Revoke Token">
+          <button class="btn btn-ghost btn-sm" style="color: var(--color-danger);" onclick="App.deleteToken('${token.id}')" title="Revoke Token">
             <i class="fas fa-trash"></i>
           </button>
         </div>
@@ -4323,7 +4323,7 @@ const App = {
       if (tokens.length > 1) {
           listEl.innerHTML += `
             <div style="margin-top: 1rem; text-align: right;">
-                <button class="btn btn-ghost btn-sm" style="color: var(--danger);" onclick="App.revokeAllTokens()">Revoke All Tokens</button>
+                <button class="btn btn-ghost btn-sm" style="color: var(--color-danger);" onclick="App.revokeAllTokens()">Revoke All Tokens</button>
             </div>
           `;
       }

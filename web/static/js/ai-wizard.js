@@ -100,10 +100,11 @@ const AIWizard = {
     const used = showQuota && typeof App.user.ai_free_generations_used === 'number' ? App.user.ai_free_generations_used : 0;
     const remaining = showQuota ? Math.max(0, freeLimit - used) : null;
     const desiredCount = this.getDesiredCountSync();
+    const goalWord = desiredCount === 1 ? 'goal' : 'goals';
     return `
       <div class="text-muted mb-md">
         ${this.state.mode === 'append'
-          ? `Describe what you want, and we'll generate <strong>${desiredCount}</strong> goals to fill your empty squares.`
+          ? `Describe what you want, and we'll generate <strong>${desiredCount}</strong> ${goalWord} to fill your empty squares.`
           : `Describe what you want, and we'll generate 24 custom Bingo goals for you.`}
       </div>
       ${showQuota ? `

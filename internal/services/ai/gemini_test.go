@@ -120,6 +120,15 @@ func TestGenerateGoals(t *testing.T) {
 			wantTokens:  5,
 		},
 		{
+			name: "invalid-count",
+			roundTrip: func(r *http.Request) (*http.Response, error) {
+				t.Fatal("expected request to be rejected before making provider call")
+				return nil, nil
+			},
+			promptCount: 25,
+			wantErrIs:   ErrAIProviderUnavailable,
+		},
+		{
 			name: "markdown-wrapped-json",
 			roundTrip: func(r *http.Request) (*http.Response, error) {
 				resp := geminiResponse{

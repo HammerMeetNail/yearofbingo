@@ -22,7 +22,6 @@
   --color-error: #ef4444;
   --color-warning: #f59e0b;
   --color-danger: var(--color-error);
-  --danger: var(--color-error);
 
   --color-text-primary: #ffffff;
   --color-text-secondary: #b0b0c0;
