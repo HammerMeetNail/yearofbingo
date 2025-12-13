@@ -30,7 +30,9 @@ test:
 
 # Run linter
 lint:
-	golangci-lint run
+	rm -rf .cache
+	@mkdir -p .cache/go-build .cache/go-mod
+	GOCACHE=$(PWD)/.cache/go-build golangci-lint run
 
 # Clean up everything including volumes
 clean:

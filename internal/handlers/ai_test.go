@@ -149,7 +149,7 @@ func TestGenerate(t *testing.T) {
 
 			body, _ := json.Marshal(tt.requestBody)
 			req := httptest.NewRequest("POST", "/api/ai/generate", bytes.NewBuffer(body))
-			
+
 			// Mock context with user if provided
 			if tt.user != nil {
 				ctx := SetUserInContext(req.Context(), tt.user)
