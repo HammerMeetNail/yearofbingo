@@ -138,6 +138,7 @@ func (s *Service) GenerateGoals(ctx context.Context, userID uuid.UUID, prompt Go
 		difficulty = "medium"
 	}
 
+	// Budget: Maps budget levels to their corresponding instructions.
 	budgetMap := map[string]string{
 		"free":   "The goals must be completely free or very low cost (under $20).",
 		"low":    "The goals should be budget-friendly (moderate cost, $20-$100 range).",
