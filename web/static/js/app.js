@@ -186,6 +186,13 @@ const App = {
     ).join('');
 
     this.openModal('Create New Card', `
+      <div class="text-center mb-lg" style="padding-bottom: 1.5rem; border-bottom: 1px solid var(--border-color);">
+        <button class="btn btn-secondary btn-lg" onclick="App.closeModal(); AIWizard.open()" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+            <span>✨</span> Generate with AI Wizard
+        </button>
+        <p class="text-muted mt-sm" style="font-size: 0.9rem;">Let AI create a custom card for you!</p>
+      </div>
+
       <form onsubmit="App.handleCreateCardModal(event)">
         <div class="form-group">
           <label for="modal-card-year">Year</label>
@@ -1447,6 +1454,13 @@ const App = {
 
     container.innerHTML = `
       <div class="card" style="max-width: 500px; margin: 2rem auto;">
+        <div class="text-center mb-lg" style="padding-bottom: 1.5rem; border-bottom: 1px solid var(--border-color);">
+            <button class="btn btn-secondary btn-lg" onclick="AIWizard.open()" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                <span>✨</span> Generate with AI Wizard
+            </button>
+            <p class="text-muted mt-sm" style="font-size: 0.9rem;">Let AI create a custom card for you!</p>
+        </div>
+
         <div class="card-header text-center">
           <h2 class="card-title">Create New Card</h2>
           <p class="card-subtitle">Set up your bingo card</p>
@@ -1615,9 +1629,14 @@ const App = {
           <div class="suggestions-panel editor-suggestions">
             <div class="suggestions-header">
               <h3 class="suggestions-title">Suggestions</h3>
-              <button class="btn btn-secondary btn-sm" id="fill-empty-btn" onclick="App.fillEmptySpaces()" ${itemCount >= 24 ? 'disabled' : ''}>
-                ✨ Fill Empty
-              </button>
+              <div style="display: flex; gap: 0.5rem;">
+                <button class="btn btn-secondary btn-sm" onclick="AIWizard.open('${this.currentCard.id}')" title="Generate goals with AI" ${itemCount >= 24 ? 'disabled' : ''}>
+                  🧙 AI
+                </button>
+                <button class="btn btn-secondary btn-sm" id="fill-empty-btn" onclick="App.fillEmptySpaces()" ${itemCount >= 24 ? 'disabled' : ''}>
+                  ✨ Fill
+                </button>
+              </div>
             </div>
             <div class="suggestions-categories" id="category-tabs">
               ${this.suggestions.map((cat, i) => `
@@ -4189,9 +4208,17 @@ const App = {
   },
 
   escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+    if (text === null || text === undefined) return '';
+    const map = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#039;'
+    };
+    return String(text).replace(/[&<>"']/g, function(c) {
+      return map[c];
+    });
   },
 
   // About Page

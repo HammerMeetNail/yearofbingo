@@ -395,6 +395,19 @@ const API = {
       return API.request('POST', '/api/support', { email, category, message });
     },
   },
+
+  // AI endpoints
+  ai: {
+    async generate(category, focus, difficulty, frequency, context) {
+      return API.request('POST', '/api/ai/generate', {
+        category,
+        focus,
+        difficulty,
+        frequency,
+        context
+      });
+    },
+  },
 };
 
 class APIError extends Error {

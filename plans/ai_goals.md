@@ -255,6 +255,12 @@ type AIProvider interface {
 4.  [ ] **Tests**: Unit tests for prompt construction and mock API responses.
 5.  [ ] **Integration Tests**: End-to-end API tests with VCR/cassette recording.
 
+### Phase 3: Frontend Implementation
+1.  [ ] **API Client**: Add `generateGoals` method to `web/static/js/api.js`.
+2.  [ ] **Wizard Logic**: Implement `web/static/js/ai-wizard.js` (State management & UI rendering).
+3.  [ ] **Integration**: Hook Wizard into the "Create Card" flow in `web/static/js/app.js`.
+4.  [ ] **Tests**: Add frontend tests for the Wizard flow.
+
 ## Testing Strategy
 
 Given the external dependency (AI API) and the non-deterministic nature of LLMs, testing requires a robust strategy that balances reliability with cost.

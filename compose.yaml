@@ -25,6 +25,7 @@ services:
       - EMAIL_FROM_ADDRESS=noreply@yearofbingo.com
       - EMAIL_FROM_NAME=Year of Bingo
       - APP_BASE_URL=http://localhost:8080
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
     depends_on:
       postgres:
         condition: service_healthy
