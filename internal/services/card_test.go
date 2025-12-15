@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/HammerMeetNail/yearofbingo/internal/models"
 )
@@ -156,6 +157,33 @@ func TestResolveCloneHasFreeSpace_OverrideWins(t *testing.T) {
 	}
 	if got := resolveCloneHasFreeSpace(true, &fval); got != false {
 		t.Fatalf("expected false override, got %v", got)
+	}
+}
+
+func TestMapBingoCardsUniqueViolationToCardExistsError_Indexes(t *testing.T) {
+	title := "My Card"
+
+	if got := mapBingoCardsUniqueViolationToCardExistsError(&pgconn.PgError{Code: "23505", ConstraintName: "idx_bingo_cards_user_year_title"}, &title); got != ErrCardTitleExists {
+		t.Fatalf("expected ErrCardTitleExists, got %v", got)
+	}
+	if got := mapBingoCardsUniqueViolationToCardExistsError(&pgconn.PgError{Code: "23505", ConstraintName: "idx_bingo_cards_user_year_null_title"}, nil); got != ErrCardAlreadyExists {
+		t.Fatalf("expected ErrCardAlreadyExists, got %v", got)
+	}
+}
+
+func TestMapBingoCardsUniqueViolationToCardExistsError_Fallback(t *testing.T) {
+	unknown := &pgconn.PgError{Code: "23505", ConstraintName: "some_other_index"}
+	title := "Copy"
+	empty := "   "
+
+	if got := mapBingoCardsUniqueViolationToCardExistsError(unknown, &title); got != ErrCardTitleExists {
+		t.Fatalf("expected ErrCardTitleExists for non-empty title, got %v", got)
+	}
+	if got := mapBingoCardsUniqueViolationToCardExistsError(unknown, &empty); got != ErrCardAlreadyExists {
+		t.Fatalf("expected ErrCardAlreadyExists for blank title, got %v", got)
+	}
+	if got := mapBingoCardsUniqueViolationToCardExistsError(&pgconn.PgError{Code: "99999"}, &title); got != nil {
+		t.Fatalf("expected nil for non-unique error, got %v", got)
 	}
 }
 

@@ -1530,6 +1530,24 @@ func resolveCloneHasFreeSpace(sourceHasFreeSpace bool, override *bool) bool {
 	return *override
 }
 
+func mapBingoCardsUniqueViolationToCardExistsError(pgErr *pgconn.PgError, title *string) error {
+	if pgErr == nil || pgErr.Code != "23505" {
+		return nil
+	}
+
+	switch pgErr.ConstraintName {
+	case "idx_bingo_cards_user_year_null_title":
+		return ErrCardAlreadyExists
+	case "idx_bingo_cards_user_year_title":
+		return ErrCardTitleExists
+	}
+
+	if title == nil || strings.TrimSpace(*title) == "" {
+		return ErrCardAlreadyExists
+	}
+	return ErrCardTitleExists
+}
+
 func (s *CardService) Clone(ctx context.Context, userID, sourceCardID uuid.UUID, params CloneParams) (*CloneResult, error) {
 	source, err := s.GetByID(ctx, sourceCardID)
 	if err != nil {
@@ -1626,6 +1644,12 @@ func (s *CardService) Clone(ctx context.Context, userID, sourceCardID uuid.UUID,
 		&newCard.IsActive, &newCard.IsFinalized, &newCard.VisibleToFriends, &newCard.IsArchived, &newCard.CreatedAt, &newCard.UpdatedAt,
 	)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			if mapped := mapBingoCardsUniqueViolationToCardExistsError(pgErr, title); mapped != nil {
+				return nil, mapped
+			}
+		}
 		return nil, fmt.Errorf("creating cloned card: %w", err)
 	}
 
