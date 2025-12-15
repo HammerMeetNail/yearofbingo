@@ -32,7 +32,7 @@ const AIWizard = {
   computeOpenCellsForCard(card) {
     const itemCount = card?.items ? card.items.length : 0;
     const capacity = this.computeCardCapacity(card);
-    return Math.max(0, Math.min(24, capacity - itemCount));
+    return Math.max(0, Math.min(capacity, capacity - itemCount));
   },
 
   computeOpenCellsFromDOM() {
@@ -41,7 +41,7 @@ const AIWizard = {
     const allCells = grid.querySelectorAll('.bingo-cell[data-position]:not(.bingo-cell--free)');
     if (!allCells.length) return null;
     const filledCells = grid.querySelectorAll('.bingo-cell[data-position][data-item-id]:not(.bingo-cell--free)');
-    return Math.max(0, Math.min(24, allCells.length - filledCells.length));
+    return Math.max(0, Math.min(allCells.length, allCells.length - filledCells.length));
   },
 
   isVerificationRequiredForAI() {
@@ -351,9 +351,9 @@ const AIWizard = {
   getDesiredCountSync() {
     if (this.state.mode !== 'append') return 24;
     const fromDom = this.computeOpenCellsFromDOM();
-    if (typeof fromDom === 'number') return Math.max(0, Math.min(24, fromDom));
+    if (typeof fromDom === 'number') return Math.max(0, Math.min(25, fromDom));
     if (typeof this.state.desiredCount === 'number' && Number.isFinite(this.state.desiredCount)) {
-      const n = Math.max(0, Math.min(24, Math.floor(this.state.desiredCount)));
+      const n = Math.max(0, Math.min(25, Math.floor(this.state.desiredCount)));
       return n;
     }
     if (App.currentCard && this.state.targetCardId && App.currentCard.id === this.state.targetCardId) {
@@ -373,7 +373,7 @@ const AIWizard = {
       }
     }
 
-    count = Math.max(1, Math.min(24, Math.floor(count)));
+    count = Math.max(1, Math.min(25, Math.floor(count)));
     this.state.desiredCount = count;
     return count;
   },

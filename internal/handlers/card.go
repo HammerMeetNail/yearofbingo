@@ -400,7 +400,7 @@ func (h *CardHandler) AddItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if errors.Is(err, services.ErrPositionOccupied) {
-		writeError(w, http.StatusBadRequest, "Position is already occupied")
+		writeError(w, http.StatusConflict, "Position is already occupied")
 		return
 	}
 	if errors.Is(err, services.ErrInvalidPosition) {
@@ -625,7 +625,7 @@ func (h *CardHandler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if errors.Is(err, services.ErrPositionOccupied) {
-		writeError(w, http.StatusBadRequest, "Position is already occupied")
+		writeError(w, http.StatusConflict, "Position is already occupied")
 		return
 	}
 	if errors.Is(err, services.ErrInvalidPosition) {

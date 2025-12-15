@@ -1619,7 +1619,7 @@ func (s *CardService) Clone(ctx context.Context, userID, sourceCardID uuid.UUID,
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		 RETURNING id, user_id, year, category, title, grid_size, header_text, has_free_space, free_space_position,
 		           is_active, is_finalized, visible_to_friends, is_archived, created_at, updated_at`,
-		userID, year, category, title, params.GridSize, params.HeaderText, params.HasFreeSpace, freePos,
+		userID, year, category, title, params.GridSize, params.HeaderText, hasFreeSpace, freePos,
 	).Scan(
 		&newCard.ID, &newCard.UserID, &newCard.Year, &newCard.Category, &newCard.Title,
 		&newCard.GridSize, &newCard.HeaderText, &newCard.HasFreeSpace, &newCard.FreeSpacePos,
