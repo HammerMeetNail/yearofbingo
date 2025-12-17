@@ -15,6 +15,8 @@ Cards support predefined grid sizes (2x2, 3x3, 4x4, 5x5) with an optional FREE s
 - **Test**: `./scripts/test.sh` (Runs Go + JS tests in container)
 - **Lint**: `make lint`
 - **E2E**: `make e2e` (Playwright runs in a container; uses Mailpit via SMTP for email flows)
+- **Debug Logs**: set `DEBUG=true` (local dev enables this in `compose.yaml`)
+  - **Note**: Debug mode may log Gemini prompt/response text during AI requests; do not enable in production.
 - **Test Coverage**: All changes must update and pass tests without decreasing coverage.
 
 ## Playwright E2E Notes

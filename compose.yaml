@@ -9,6 +9,8 @@ services:
       - SERVER_HOST=0.0.0.0
       - SERVER_PORT=8080
       - APP_ENV=development
+      - DEBUG=true
+      - DEBUG_LOG_MAX_CHARS=8000
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=bingo

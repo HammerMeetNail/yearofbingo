@@ -8,7 +8,7 @@ import (
 func TestLoad_Defaults(t *testing.T) {
 	// Clear any existing env vars that might interfere
 	envVars := []string{
-		"SERVER_HOST", "SERVER_PORT", "SERVER_SECURE",
+		"SERVER_HOST", "SERVER_PORT", "SERVER_SECURE", "DEBUG", "DEBUG_LOG_MAX_CHARS",
 		"DB_HOST", "DB_PORT", "DB_USER", "DB_PASSWORD", "DB_NAME", "DB_SSLMODE",
 		"REDIS_HOST", "REDIS_PORT", "REDIS_PASSWORD", "REDIS_DB",
 	}
@@ -30,6 +30,12 @@ func TestLoad_Defaults(t *testing.T) {
 	}
 	if cfg.Server.Secure != false {
 		t.Error("expected Server.Secure to be false")
+	}
+	if cfg.Server.Debug != false {
+		t.Error("expected Server.Debug to be false")
+	}
+	if cfg.Server.DebugMaxChars != 8000 {
+		t.Errorf("expected Server.DebugMaxChars to be 8000, got %d", cfg.Server.DebugMaxChars)
 	}
 
 	// Database defaults
@@ -72,6 +78,8 @@ func TestLoad_CustomValues(t *testing.T) {
 	os.Setenv("SERVER_HOST", "127.0.0.1")
 	os.Setenv("SERVER_PORT", "3000")
 	os.Setenv("SERVER_SECURE", "true")
+	os.Setenv("DEBUG", "true")
+	os.Setenv("DEBUG_LOG_MAX_CHARS", "1234")
 	os.Setenv("DB_HOST", "db.example.com")
 	os.Setenv("DB_PORT", "5433")
 	os.Setenv("DB_USER", "admin")
@@ -88,6 +96,8 @@ func TestLoad_CustomValues(t *testing.T) {
 		os.Unsetenv("SERVER_HOST")
 		os.Unsetenv("SERVER_PORT")
 		os.Unsetenv("SERVER_SECURE")
+		os.Unsetenv("DEBUG")
+		os.Unsetenv("DEBUG_LOG_MAX_CHARS")
 		os.Unsetenv("DB_HOST")
 		os.Unsetenv("DB_PORT")
 		os.Unsetenv("DB_USER")
@@ -114,6 +124,12 @@ func TestLoad_CustomValues(t *testing.T) {
 	}
 	if cfg.Server.Secure != true {
 		t.Error("expected Server.Secure to be true")
+	}
+	if cfg.Server.Debug != true {
+		t.Error("expected Server.Debug to be true")
+	}
+	if cfg.Server.DebugMaxChars != 1234 {
+		t.Errorf("expected Server.DebugMaxChars to be 1234, got %d", cfg.Server.DebugMaxChars)
 	}
 
 	// Database values

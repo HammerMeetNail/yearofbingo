@@ -37,6 +37,15 @@ func run() error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
+	if cfg.Server.Debug {
+		logger.SetLevel(logging.LevelDebug)
+		logging.SetDefaultLevel(logging.LevelDebug)
+		logger.Debug("Debug logging enabled", map[string]interface{}{
+			"max_chars": cfg.Server.DebugMaxChars,
+			"env":       cfg.Server.Environment,
+		})
+	}
+
 	logger.Info("Starting Year of Bingo server...")
 
 	// Connect to PostgreSQL
