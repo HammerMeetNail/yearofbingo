@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	geminiModel                       = "gemini-2.5-flash-lite"
+	geminiModel                       = "gemini-3-flash-preview"
 	freeGenerationsBeforeVerification = 5
 )
 
