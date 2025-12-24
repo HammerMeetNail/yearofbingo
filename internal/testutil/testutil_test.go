@@ -49,10 +49,15 @@ func TestRequestBuilders(t *testing.T) {
 }
 
 func TestRandomGenerators(t *testing.T) {
-	if RandomUUID() == RandomUUID() {
+	firstUUID := RandomUUID()
+	secondUUID := RandomUUID()
+	if firstUUID == secondUUID {
 		t.Fatalf("expected different uuids")
 	}
-	if RandomEmail() == RandomEmail() {
+
+	firstEmail := RandomEmail()
+	secondEmail := RandomEmail()
+	if firstEmail == secondEmail {
 		t.Fatalf("expected different emails")
 	}
 }

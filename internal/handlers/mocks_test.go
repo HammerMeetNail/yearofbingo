@@ -557,3 +557,38 @@ func (m *mockReactionService) GetUserReactionForItem(ctx context.Context, userID
 	}
 	return nil, nil
 }
+
+type mockApiTokenService struct {
+	CreateFunc    func(ctx context.Context, userID uuid.UUID, name string, scope models.ApiTokenScope, expiresInDays int) (*models.ApiToken, string, error)
+	ListFunc      func(ctx context.Context, userID uuid.UUID) ([]models.ApiToken, error)
+	DeleteFunc    func(ctx context.Context, userID uuid.UUID, tokenID uuid.UUID) error
+	DeleteAllFunc func(ctx context.Context, userID uuid.UUID) error
+}
+
+func (m *mockApiTokenService) Create(ctx context.Context, userID uuid.UUID, name string, scope models.ApiTokenScope, expiresInDays int) (*models.ApiToken, string, error) {
+	if m.CreateFunc != nil {
+		return m.CreateFunc(ctx, userID, name, scope, expiresInDays)
+	}
+	return nil, "", nil
+}
+
+func (m *mockApiTokenService) List(ctx context.Context, userID uuid.UUID) ([]models.ApiToken, error) {
+	if m.ListFunc != nil {
+		return m.ListFunc(ctx, userID)
+	}
+	return nil, nil
+}
+
+func (m *mockApiTokenService) Delete(ctx context.Context, userID uuid.UUID, tokenID uuid.UUID) error {
+	if m.DeleteFunc != nil {
+		return m.DeleteFunc(ctx, userID, tokenID)
+	}
+	return nil
+}
+
+func (m *mockApiTokenService) DeleteAll(ctx context.Context, userID uuid.UUID) error {
+	if m.DeleteAllFunc != nil {
+		return m.DeleteAllFunc(ctx, userID)
+	}
+	return nil
+}

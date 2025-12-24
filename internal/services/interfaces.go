@@ -106,3 +106,11 @@ type EmailServiceInterface interface {
 	MarkPasswordResetUsed(ctx context.Context, token string) error
 	SendSupportEmail(ctx context.Context, fromEmail, category, message string, userID string) error
 }
+
+// ApiTokenServiceInterface defines the contract for API token operations used by handlers.
+type ApiTokenServiceInterface interface {
+	Create(ctx context.Context, userID uuid.UUID, name string, scope models.ApiTokenScope, expiresInDays int) (*models.ApiToken, string, error)
+	List(ctx context.Context, userID uuid.UUID) ([]models.ApiToken, error)
+	Delete(ctx context.Context, userID uuid.UUID, tokenID uuid.UUID) error
+	DeleteAll(ctx context.Context, userID uuid.UUID) error
+}

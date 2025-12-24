@@ -846,3 +846,163 @@ func TestWriteError(t *testing.T) {
 		t.Errorf("expected error 'Resource not found', got %q", response.Error)
 	}
 }
+
+func TestAuthHandler_ChangePassword_Success(t *testing.T) {
+	user := &models.User{ID: uuid.New(), PasswordHash: "hash"}
+
+	mockUser := &mockUserService{
+		UpdatePasswordFunc: func(ctx context.Context, userID uuid.UUID, newPasswordHash string) error {
+			if userID != user.ID {
+				t.Fatalf("unexpected user id: %s", userID)
+			}
+			if newPasswordHash != "new_hash" {
+				t.Fatalf("unexpected password hash: %q", newPasswordHash)
+			}
+			return nil
+		},
+	}
+	mockAuth := &mockAuthService{
+		VerifyPasswordFunc: func(hash, password string) bool { return true },
+		HashPasswordFunc:   func(password string) (string, error) { return "new_hash", nil },
+		CreateSessionFunc:  func(ctx context.Context, userID uuid.UUID) (string, error) { return "session_token", nil },
+	}
+	handler := NewAuthHandler(mockUser, mockAuth, &mockEmailService{}, false)
+
+	bodyBytes := []byte(`{"current_password":"OldPass123","new_password":"NewPass123"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/change-password", bytes.NewBuffer(bodyBytes))
+	req = req.WithContext(SetUserInContext(req.Context(), user))
+	rr := httptest.NewRecorder()
+
+	handler.ChangePassword(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rr.Code)
+	}
+	if len(rr.Result().Cookies()) == 0 {
+		t.Fatalf("expected session cookie to be set")
+	}
+}
+
+func TestAuthHandler_MagicLinkVerify_Success(t *testing.T) {
+	userID := uuid.New()
+	email := "test@example.com"
+
+	mockUser := &mockUserService{
+		GetByEmailFunc: func(ctx context.Context, e string) (*models.User, error) {
+			return &models.User{ID: userID, Email: email, EmailVerified: false}, nil
+		},
+		MarkEmailVerifiedFunc: func(ctx context.Context, gotUserID uuid.UUID) error { return nil },
+		GetByIDFunc: func(ctx context.Context, id uuid.UUID) (*models.User, error) {
+			return &models.User{ID: userID, Email: email, EmailVerified: true}, nil
+		},
+	}
+	mockAuth := &mockAuthService{
+		CreateSessionFunc: func(ctx context.Context, gotUserID uuid.UUID) (string, error) { return "session_token", nil },
+	}
+	mockEmail := &mockEmailService{
+		VerifyMagicLinkFunc: func(ctx context.Context, token string) (string, error) {
+			return email, nil
+		},
+	}
+	handler := NewAuthHandler(mockUser, mockAuth, mockEmail, false)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/auth/magic-link/verify?token=abc", nil)
+	rr := httptest.NewRecorder()
+
+	handler.MagicLinkVerify(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rr.Code)
+	}
+	if len(rr.Result().Cookies()) == 0 {
+		t.Fatalf("expected session cookie to be set")
+	}
+}
+
+func TestAuthHandler_ResetPassword_Success(t *testing.T) {
+	userID := uuid.New()
+	email := "test@example.com"
+
+	mockUser := &mockUserService{
+		UpdatePasswordFunc: func(ctx context.Context, gotUserID uuid.UUID, newPasswordHash string) error { return nil },
+		MarkEmailVerifiedFunc: func(ctx context.Context, gotUserID uuid.UUID) error {
+			return nil
+		},
+		GetByIDFunc: func(ctx context.Context, id uuid.UUID) (*models.User, error) {
+			return &models.User{ID: userID, Email: email, EmailVerified: true}, nil
+		},
+	}
+	mockAuth := &mockAuthService{
+		HashPasswordFunc:  func(password string) (string, error) { return "new_hash", nil },
+		CreateSessionFunc: func(ctx context.Context, gotUserID uuid.UUID) (string, error) { return "session_token", nil },
+	}
+	mockEmail := &mockEmailService{
+		VerifyPasswordResetTokenFunc: func(ctx context.Context, token string) (uuid.UUID, error) { return userID, nil },
+		MarkPasswordResetUsedFunc:    func(ctx context.Context, token string) error { return nil },
+	}
+	handler := NewAuthHandler(mockUser, mockAuth, mockEmail, false)
+
+	bodyBytes := []byte(`{"token":"t1","password":"NewPass123"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/reset-password", bytes.NewBuffer(bodyBytes))
+	rr := httptest.NewRecorder()
+
+	handler.ResetPassword(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rr.Code)
+	}
+	if len(rr.Result().Cookies()) == 0 {
+		t.Fatalf("expected session cookie to be set")
+	}
+}
+
+func TestAuthHandler_UpdateSearchable_Success(t *testing.T) {
+	user := &models.User{ID: uuid.New()}
+
+	mockUser := &mockUserService{
+		UpdateSearchableFunc: func(ctx context.Context, userID uuid.UUID, searchable bool) error {
+			if userID != user.ID {
+				t.Fatalf("unexpected user id: %s", userID)
+			}
+			if searchable != true {
+				t.Fatalf("expected searchable true")
+			}
+			return nil
+		},
+		GetByIDFunc: func(ctx context.Context, id uuid.UUID) (*models.User, error) {
+			return &models.User{ID: id, Searchable: true}, nil
+		},
+	}
+	handler := NewAuthHandler(mockUser, &mockAuthService{}, &mockEmailService{}, false)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/searchable", bytes.NewBufferString(`{"searchable":true}`))
+	req = req.WithContext(SetUserInContext(req.Context(), user))
+	rr := httptest.NewRecorder()
+
+	handler.UpdateSearchable(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rr.Code)
+	}
+}
+
+func TestAuthHandler_VerifyEmail_Success(t *testing.T) {
+	mockEmail := &mockEmailService{
+		VerifyEmailFunc: func(ctx context.Context, token string) error {
+			if token != "t1" {
+				t.Fatalf("unexpected token: %q", token)
+			}
+			return nil
+		},
+	}
+	handler := NewAuthHandler(&mockUserService{}, &mockAuthService{}, mockEmail, false)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/verify-email", bytes.NewBufferString(`{"token":"t1"}`))
+	rr := httptest.NewRecorder()
+
+	handler.VerifyEmail(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rr.Code)
+	}
+}

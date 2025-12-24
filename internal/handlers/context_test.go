@@ -107,3 +107,16 @@ func TestSetUserInContext_OverwriteUser(t *testing.T) {
 		t.Error("expected second user to overwrite first")
 	}
 }
+
+func TestTokenScopeContext(t *testing.T) {
+	ctx := context.Background()
+
+	if got := GetTokenScopeFromContext(ctx); got != "" {
+		t.Fatalf("expected empty scope, got %q", got)
+	}
+
+	ctx = SetTokenScopeInContext(ctx, models.ScopeReadWrite)
+	if got := GetTokenScopeFromContext(ctx); got != models.ScopeReadWrite {
+		t.Fatalf("expected scope %q, got %q", models.ScopeReadWrite, got)
+	}
+}
