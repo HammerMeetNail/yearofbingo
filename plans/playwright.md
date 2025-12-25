@@ -10,6 +10,7 @@
 - Playwright runs in a container; no npm install on the host.
 - Default browser is Firefox; Chromium and WebKit are optional via flags.
 - E2E tests use both seeded data and UI-created data.
+- E2E runs with `AI_STUB=1` so AI wizard flows are deterministic without external APIs.
 
 ## Proposed Workflow (`make e2e`)
 1. `podman compose down -v` (destructive reset).
@@ -40,8 +41,8 @@
 ## Test Coverage Outline
 ## Current E2E Scenarios
 - `tests/e2e/seeded-data.spec.js`
-  - Seeded dashboard cards render with progress and FREE space.
-  - Friend reactions appear on seeded friend cards.
+  - Seeded dashboard cards render with progress and FREE space (invariant checks).
+  - Friend reactions can be added on seeded friend cards.
   - Cards can be archived via bulk actions and show archived view.
 - `tests/e2e/anonymous-flow.spec.js`
   - Anonymous draft creation, shuffle (FREE stays), reload persistence.
@@ -49,14 +50,17 @@
 - `tests/e2e/anonymous-alternatives.spec.js`
   - Anonymous finalize supports login instead of register.
   - Anonymous card conflicts allow keeping the existing card (discarding anon card).
+  - Anonymous card conflicts allow replacing the existing card with anon content.
 - `tests/e2e/authenticated-flow.spec.js`
   - Logged-in user configures header/FREE, finalizes, completes/uncompletes.
   - Clone flow supports grid size/header changes on new draft.
 - `tests/e2e/bulk-actions.spec.js`
-  - Bulk visibility updates, export ZIP download, and bulk delete.
+  - Bulk visibility updates, export ZIP download (ZIP header sanity), and bulk delete.
 - `tests/e2e/editor-actions.spec.js`
   - Draft goal edit/remove updates grid and progress.
   - Finalized visibility toggle switches between visible/private.
+- `tests/e2e/visibility-enforcement.spec.js`
+  - Friends can view visible cards, but private cards are hidden.
 - `tests/e2e/auth-flows.spec.js`
   - Magic link login via email token.
   - Password reset via emailed token.
@@ -68,10 +72,24 @@
   - Searchable toggle gates friend search visibility.
   - Password change validation and re-login with new password.
 - `tests/e2e/profile-tokens.spec.js`
-  - Create/revoke API tokens and copy-to-clipboard toast.
+  - Create/revoke API tokens, copy-to-clipboard toast, and token auth validation.
   - Revoke all tokens with confirmation.
+- `tests/e2e/completion-notes.spec.js`
+  - Completion notes are saved and persist across reloads.
+- `tests/e2e/bingo-celebration.spec.js`
+  - Completing a row triggers a bingo celebration toast.
+- `tests/e2e/drag-drop.spec.js`
+  - Drag-and-drop reorders items without moving FREE.
+- `tests/e2e/draft-safety.spec.js`
+  - Clear-all removes draft items.
+  - Full drafts warn before leaving without finalizing.
 - `tests/e2e/social-flow.spec.js`
   - Friend request, accept flow, view friend card, add reaction.
+- `tests/e2e/support-form.spec.js`
+  - Support form validation, success toast, and email delivery via Mailpit.
+- `tests/e2e/ai-wizard.spec.js`
+  - AI wizard generates goals and creates a card (stubbed).
+  - Unverified users are prompted to verify after free generations are used.
 
 ## Unit Test Separation
 - Add make targets:
@@ -98,4 +116,5 @@
 - E2E suite covers both seeded and UI-created data flows.
 
 ## Scenario Backlog
-- None (all current backlog items implemented).
+- Support form rate-limit handling (only if deterministic in CI).
+- AI wizard append-to-card flow and verified-user unlimited access.

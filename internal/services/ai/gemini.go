@@ -31,6 +31,7 @@ type Service struct {
 	apiKey string
 	client *http.Client
 	db     services.DBConn
+	stub   bool
 }
 
 func NewService(cfg *config.Config, db services.DBConn) *Service {
@@ -38,6 +39,7 @@ func NewService(cfg *config.Config, db services.DBConn) *Service {
 		apiKey: cfg.AI.GeminiAPIKey,
 		client: &http.Client{Timeout: 30 * time.Second},
 		db:     db,
+		stub:   cfg.AI.Stub,
 	}
 }
 
@@ -154,6 +156,30 @@ type geminiUsage struct {
 
 func (s *Service) GenerateGoals(ctx context.Context, userID uuid.UUID, prompt GoalPrompt) ([]string, UsageStats, error) {
 	start := time.Now()
+
+	count := prompt.Count
+	if count == 0 {
+		count = 24
+	}
+	if count < 1 || count > 24 {
+		return nil, UsageStats{}, fmt.Errorf("%w: invalid goal count %d", ErrAIProviderUnavailable, count)
+	}
+
+	if s.stub {
+		goals := stubGoals()
+		if len(goals) < count {
+			return nil, UsageStats{}, fmt.Errorf("%w: expected %d goals, got %d", ErrAIProviderUnavailable, count, len(goals))
+		}
+		goals = goals[:count]
+
+		stats := UsageStats{
+			Model:    "stub",
+			Duration: time.Since(start),
+		}
+		s.logUsageWithTimeout(userID, stats, "success")
+		return goals, stats, nil
+	}
+
 	if strings.TrimSpace(s.apiKey) == "" {
 		logging.Warn("Gemini API key missing; AI generation unavailable", map[string]interface{}{
 			"user_id": userID.String(),
@@ -170,14 +196,6 @@ func (s *Service) GenerateGoals(ctx context.Context, userID uuid.UUID, prompt Go
 
 	// Construct the prompt with specific style rules
 	topic := prompt.Category
-
-	count := prompt.Count
-	if count == 0 {
-		count = 24
-	}
-	if count < 1 || count > 24 {
-		return nil, UsageStats{}, fmt.Errorf("%w: invalid goal count %d", ErrAIProviderUnavailable, count)
-	}
 
 	difficulty := prompt.Difficulty
 	if difficulty == "" {
@@ -439,4 +457,33 @@ func sanitizeInput(input string) string {
 func escapeXMLTags(input string) string {
 	replacer := strings.NewReplacer("<", "＜", ">", "＞")
 	return replacer.Replace(input)
+}
+
+func stubGoals() []string {
+	return []string{
+		"Sunrise Walk: Catch a sunrise at a nearby park.",
+		"Local Mural Hunt: Find and photograph a neighborhood mural.",
+		"Library Quest: Check out a book from a new genre.",
+		"Trail Snapshot: Take a photo at the closest nature trail.",
+		"City Stroll: Walk a new street and note one hidden gem.",
+		"Market Mission: Try a new snack from a local market.",
+		"Postcard Moment: Write a postcard to a friend.",
+		"Budget Adventure: Visit a free museum or gallery.",
+		"Coffee Crawl: Sample a drink from a new cafe.",
+		"Park Picnic: Pack a small picnic for a local park.",
+		"Sunset Watch: Watch the sunset from a scenic spot.",
+		"Photo Challenge: Capture three colors on a walk.",
+		"History Stop: Read a local history plaque.",
+		"Neighborhood Loop: Walk a loop without using a map.",
+		"Street Art Spot: Find a sticker or stencil piece.",
+		"Mini Hike: Hike a short trail within 30 minutes.",
+		"Creative Break: Sketch a scene for five minutes.",
+		"Music Moment: Listen to a new album start-to-finish.",
+		"Local Treat: Buy a dessert you have never tried.",
+		"Scenic Bench: Sit at a view and breathe for 10 minutes.",
+		"Fresh Air Goal: Spend 20 minutes outside today.",
+		"Kindness Note: Leave a nice note for someone.",
+		"Random Detour: Take a different route home once.",
+		"New Routine: Start a simple morning stretch.",
+	}
 }

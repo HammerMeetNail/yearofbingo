@@ -12,10 +12,13 @@ test('anonymous user can create, shuffle, and save a card', async ({ page }, tes
   await expect(page.locator('#item-input')).toBeVisible();
   await page.fill('#item-input', 'Goal one');
   await page.click('#add-btn');
+  await page.fill('#item-input', 'Goal two');
+  await page.click('#add-btn');
 
   const freeBefore = await page.locator('.bingo-cell--free').getAttribute('data-position');
   await page.getByRole('button', { name: /Shuffle/ }).click();
-  await page.waitForTimeout(400);
+  await page.waitForSelector('.bingo-cell--shuffling', { state: 'attached' });
+  await page.waitForSelector('.bingo-cell--shuffling', { state: 'detached' });
   const freeAfter = await page.locator('.bingo-cell--free').getAttribute('data-position');
   expect(freeAfter).toBe(freeBefore);
 
@@ -24,8 +27,8 @@ test('anonymous user can create, shuffle, and save a card', async ({ page }, tes
   await expect(page.locator('.bingo-cell').filter({ hasText: 'Goal one' })).toBeVisible();
 
   await page.locator('#fill-empty-btn').click();
-  await expect(page.locator('[onclick="App.finalizeCard()"]')).toBeEnabled();
-  await page.locator('[onclick="App.finalizeCard()"]').click();
+  await expect(page.locator('.editor-actions').getByRole('button', { name: /Finalize Card/i })).toBeEnabled();
+  await page.locator('.editor-actions').getByRole('button', { name: /Finalize Card/i }).click();
 
   const modal = page.locator('#modal-overlay');
   await expect(modal).toHaveClass(/modal-overlay--visible/);

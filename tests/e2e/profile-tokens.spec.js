@@ -22,7 +22,7 @@ function stubClipboard(page) {
   });
 }
 
-async function createToken(page, name) {
+async function createToken(page, name, { closeModal = true } = {}) {
   await page.getByRole('button', { name: 'Create New Token' }).click();
   await expect(page.getByRole('heading', { name: 'Create API Token' })).toBeVisible();
   await page.fill('#token-name', name);
@@ -30,10 +30,14 @@ async function createToken(page, name) {
   await page.selectOption('#token-expiry', '0');
   await page.getByRole('button', { name: 'Generate Token' }).click();
   await expect(page.getByRole('heading', { name: 'Token Generated' })).toBeVisible();
-  await page.getByRole('button', { name: 'Done' }).click();
+  const token = await page.locator('#new-token').innerText();
+  if (closeModal) {
+    await page.getByRole('button', { name: 'Done' }).click();
+  }
+  return token;
 }
 
-test('API tokens can be created, copied, and revoked', async ({ page }, testInfo) => {
+test('API tokens can be created, copied, and revoked', async ({ page, request }, testInfo) => {
   await stubClipboard(page);
   const user = buildUser(testInfo, 'token');
   await register(page, user);
@@ -41,13 +45,7 @@ test('API tokens can be created, copied, and revoked', async ({ page }, testInfo
   await page.goto('/#profile');
   await expect(page.locator('#api-tokens-list')).toContainText('No active tokens');
 
-  await page.getByRole('button', { name: 'Create New Token' }).click();
-  await page.fill('#token-name', 'CLI Token');
-  await page.selectOption('#token-scope', 'read_write');
-  await page.selectOption('#token-expiry', '0');
-  await page.getByRole('button', { name: 'Generate Token' }).click();
-
-  await expect(page.getByRole('heading', { name: 'Token Generated' })).toBeVisible();
+  const token = await createToken(page, 'CLI Token', { closeModal: false });
   await page.getByRole('button', { name: 'Copy' }).click();
   await expectToast(page, 'Copied to clipboard');
   await page.getByRole('button', { name: 'Done' }).click();
@@ -55,10 +53,20 @@ test('API tokens can be created, copied, and revoked', async ({ page }, testInfo
   const list = page.locator('#api-tokens-list');
   await expect(list).toContainText('CLI Token');
 
+  const apiResponse = await request.get('/api/cards', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  expect(apiResponse.ok()).toBeTruthy();
+
   page.once('dialog', (dialog) => dialog.accept());
   await list.locator('button[title="Revoke Token"]').first().click();
   await expectToast(page, 'Token revoked');
   await expect(list).toContainText('No active tokens');
+
+  const revokedResponse = await request.get('/api/cards', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  expect(revokedResponse.status()).toBe(401);
 });
 
 test('API tokens can be revoked all at once', async ({ page }, testInfo) => {

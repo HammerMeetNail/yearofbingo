@@ -1,6 +1,7 @@
 const { expect } = require('@playwright/test');
 
 const MAILPIT_BASE_URL = process.env.MAILPIT_BASE_URL || 'http://mailpit:8025';
+const MAILPIT_WAIT_TIMEOUT_MS = Number.parseInt(process.env.MAILPIT_WAIT_TIMEOUT_MS || '30000', 10);
 
 function buildUser(testInfo, prefix) {
   const baseId = testInfo && testInfo.testId
@@ -34,7 +35,9 @@ async function loginWithCredentials(page, email, password) {
   await page.goto('/#login');
   await page.locator('#login-form #email').fill(email);
   await page.locator('#login-form #password').fill(password);
-  await page.getByRole('button', { name: 'Sign In' }).click();
+  await page.evaluate(() => {
+    document.getElementById('login-form')?.requestSubmit();
+  });
   await expect(page.getByRole('heading', { name: 'My Bingo Cards' })).toBeVisible();
 }
 
@@ -51,7 +54,7 @@ async function createCardFromModal(page, { title, gridSize, header, hasFree = tr
   await page.goto('/#dashboard');
   await expect(page.getByRole('heading', { name: 'My Bingo Cards' })).toBeVisible();
   const addButton = page.getByRole('button', { name: '+ Card' });
-  if (await addButton.count()) {
+  if (await addButton.isVisible()) {
     await addButton.click();
     await expect(page.locator('#modal-title')).toHaveText('Create New Card');
 
@@ -111,11 +114,11 @@ async function fillCardWithSuggestions(page) {
   const fillButton = page.locator('#fill-empty-btn');
   await expect(fillButton).toBeEnabled();
   await fillButton.click();
-  await expect(page.locator('[onclick="App.finalizeCard()"]')).toBeEnabled();
+  await expect(page.locator('.editor-actions').getByRole('button', { name: /Finalize Card/i })).toBeEnabled();
 }
 
 async function finalizeCard(page) {
-  await page.locator('[onclick="App.finalizeCard()"]').click();
+  await page.locator('.editor-actions').getByRole('button', { name: /Finalize Card/i }).click();
   const modal = page.locator('#modal-overlay');
   await expect(modal).toHaveClass(/modal-overlay--visible/);
   await modal.getByRole('button', { name: 'Finalize Card' }).click();
@@ -137,6 +140,28 @@ async function logout(page) {
 async function expectToast(page, message) {
   const toast = page.locator('#toast-container .toast').last();
   await expect(toast).toContainText(message);
+}
+
+async function ensureSelectedCount(page, expected) {
+  const selectAll = page.getByRole('button', { name: 'Select All', exact: true });
+  const deselectAll = page.getByRole('button', { name: 'Deselect All', exact: true });
+
+  for (let attempts = 0; attempts < 3; attempts += 1) {
+    const text = await page.locator('#selected-count').innerText();
+    const current = Number.parseInt(text, 10);
+    if (Number.isFinite(current) && current === expected) {
+      return;
+    }
+
+    if (current > expected) {
+      await deselectAll.click();
+    } else {
+      await selectAll.click();
+    }
+  }
+
+  const finalText = await page.locator('#selected-count').innerText();
+  throw new Error(`Unable to reach ${expected} selected cards (got "${finalText}")`);
 }
 
 async function clearMailpit(request) {
@@ -185,7 +210,7 @@ function getMessageBody(message) {
   return message.Text || message.text || message.HTML || message.html || message.Body || message.body || '';
 }
 
-async function waitForEmail(request, { to, subject, timeout = 15000 } = {}) {
+async function waitForEmail(request, { to, subject, timeout = MAILPIT_WAIT_TIMEOUT_MS } = {}) {
   const start = Date.now();
   const lowerTo = String(to || '').toLowerCase();
   const lowerSubject = subject ? String(subject).toLowerCase() : '';
@@ -228,6 +253,38 @@ async function waitForEmail(request, { to, subject, timeout = 15000 } = {}) {
   throw new Error(`Timed out waiting for email${to ? ` to ${to}` : ''}${subject ? ` with subject ${subject}` : ''}`);
 }
 
+async function expectNoEmail(request, { to, subject, timeout = 3000 } = {}) {
+  const start = Date.now();
+  const lowerTo = String(to || '').toLowerCase();
+  const lowerSubject = subject ? String(subject).toLowerCase() : '';
+
+  while (Date.now() - start < timeout) {
+    const response = await request.get(`${MAILPIT_BASE_URL}/api/v1/messages`);
+    if (response.ok()) {
+      let data = null;
+      try {
+        data = await response.json();
+      } catch (error) {
+        data = null;
+      }
+
+      const messages = (data && (data.messages || data.Messages || data.items)) || [];
+      const filtered = messages.filter((message) => {
+        const recipients = getMessageRecipients(message).map((recipient) => recipient.toLowerCase());
+        const matchesRecipient = !lowerTo || recipients.some((recipient) => recipient.includes(lowerTo));
+        const matchesSubject = !lowerSubject || getMessageSubject(message).toLowerCase().includes(lowerSubject);
+        return matchesRecipient && matchesSubject;
+      });
+
+      if (filtered.length > 0) {
+        throw new Error(`Unexpected email received${to ? ` to ${to}` : ''}${subject ? ` with subject ${subject}` : ''}`);
+      }
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+}
+
 function extractTokenFromEmail(message, route) {
   const body = getMessageBody(message);
   const tokenMatch = body.match(new RegExp(`#${route}\\?token=([a-f0-9]+)`, 'i'));
@@ -249,7 +306,9 @@ module.exports = {
   completeFirstItem,
   logout,
   expectToast,
+  ensureSelectedCount,
   clearMailpit,
   waitForEmail,
+  expectNoEmail,
   extractTokenFromEmail,
 };

@@ -1,9 +1,11 @@
 const { test, expect } = require('@playwright/test');
+const fs = require('fs/promises');
 const {
   buildUser,
   register,
   createFinalizedCardFromModal,
   expectToast,
+  ensureSelectedCount,
 } = require('./helpers');
 
 async function clickAction(page, label) {
@@ -23,20 +25,24 @@ test('bulk actions update visibility, export, and delete cards', async ({ page }
 
   await page.goto('/#dashboard');
   await expect(page.locator('.dashboard-card-preview')).toHaveCount(2);
-  await page.getByRole('button', { name: 'Select All', exact: true }).click();
-  await expect(page.locator('#selected-count')).toContainText('2 selected');
+  await ensureSelectedCount(page, 2);
 
   await clickAction(page, 'Make Private');
   await expectToast(page, 'cards updated');
   await expect(page.locator('.visibility-badge--private')).toHaveCount(2);
 
-  await page.getByRole('button', { name: 'Select All', exact: true }).click();
+  await ensureSelectedCount(page, 2);
   const downloadPromise = page.waitForEvent('download');
   await clickAction(page, 'Export Cards');
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toMatch(/^yearofbingo_export_\d{4}-\d{2}-\d{2}\.zip$/);
+  const exportPath = testInfo.outputPath('cards-export.zip');
+  await download.saveAs(exportPath);
+  const buffer = await fs.readFile(exportPath);
+  expect(buffer.slice(0, 2).toString('utf8')).toBe('PK');
+  expect(buffer.length).toBeGreaterThan(100);
 
-  await page.getByRole('button', { name: 'Select All', exact: true }).click();
+  await ensureSelectedCount(page, 2);
   page.once('dialog', (dialog) => dialog.accept());
   await clickAction(page, 'Delete');
   await expectToast(page, 'deleted');

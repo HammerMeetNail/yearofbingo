@@ -16,6 +16,7 @@ PLAYWRIGHT_OUTPUT_DIR="${PLAYWRIGHT_OUTPUT_DIR:-/test-results}"
 PLAYWRIGHT_REPORT_DIR="${PLAYWRIGHT_REPORT_DIR:-/playwright-report}"
 HEALTH_ATTEMPTS="${E2E_HEALTH_ATTEMPTS:-60}"
 HEALTH_SLEEP="${E2E_HEALTH_SLEEP:-2}"
+AI_STUB="${AI_STUB:-1}"
 
 cd "$PROJECT_DIR"
 
@@ -32,6 +33,7 @@ echo "Building assets..."
 
 echo ""
 echo "Starting containers..."
+export AI_STUB
 podman compose up -d --build
 
 echo ""
