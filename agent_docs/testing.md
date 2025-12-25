@@ -8,9 +8,33 @@ Tests run in containers to match the production environment.
 # Run all tests (Go + JS) in container
 ./scripts/test.sh
 
+# Run Go tests only
+./scripts/test.sh --go
+make test-backend
+
+# Run JS tests only
+./scripts/test.sh --js
+make test-frontend
+
 # Run with coverage report
 ./scripts/test.sh --coverage
 ```
+
+### E2E Tests (Playwright)
+
+```bash
+# Destructive: resets DB volumes, seeds data, runs Playwright in Firefox
+make e2e
+
+# Run in headed mode
+make e2e-headed
+
+# Override browsers
+make e2e BROWSERS=chromium
+make e2e BROWSERS=firefox,webkit
+```
+
+Artifacts are written to `test-results` and `playwright-report`.
 
 ### Go Tests
 Unit tests are in `*_test.go` files alongside the source code:

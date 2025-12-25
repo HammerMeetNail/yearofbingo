@@ -123,6 +123,28 @@ go test ./...
 node web/static/js/tests/runner.js
 ```
 
+#### E2E (Playwright)
+
+Playwright runs in a container (no npm install on the host) and uses Mailpit (SMTP) for email flows.
+
+```bash
+# Full E2E run (fresh DB, seeds, Firefox by default)
+make e2e
+
+# Run other browsers
+make e2e BROWSERS=chromium
+make e2e BROWSERS=webkit
+
+# Headed mode
+make e2e HEADLESS=false
+```
+
+Artifacts:
+- HTML report: `playwright-report/`
+- Raw results: `test-results/`
+
+CI runs the E2E suite headless using Docker Compose and the Playwright container (Mailpit is used for verification/magic-link/reset tests).
+
 ## Project Structure
 
 ```

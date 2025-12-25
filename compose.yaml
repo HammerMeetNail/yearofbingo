@@ -46,6 +46,29 @@ services:
           path: ./web
           target: /app/web
 
+  playwright:
+    build:
+      context: .
+      dockerfile: Containerfile.playwright
+    profiles:
+      - e2e
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      - PLAYWRIGHT_BASE_URL=${PLAYWRIGHT_BASE_URL:-http://app:8080}
+      - PLAYWRIGHT_HEADLESS=${PLAYWRIGHT_HEADLESS:-true}
+      - PLAYWRIGHT_BROWSERS=${PLAYWRIGHT_BROWSERS:-firefox}
+      - PWDEBUG=${PWDEBUG:-}
+      - PLAYWRIGHT_OUTPUT_DIR=${PLAYWRIGHT_OUTPUT_DIR:-/test-results}
+      - PLAYWRIGHT_REPORT_DIR=${PLAYWRIGHT_REPORT_DIR:-/playwright-report}
+    volumes:
+      - ./:/app:ro
+      - ./test-results:/test-results
+      - ./playwright-report:/playwright-report
+    working_dir: /app
+    shm_size: "1gb"
+
   postgres:
     image: docker.io/library/postgres:16-alpine
     environment:
