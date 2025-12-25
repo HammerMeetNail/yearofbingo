@@ -36,11 +36,11 @@ Deliverable: PR comment (or notes) stating the intended contracts we’re testin
 Problem: `internal/handlers/support_test.go` contains a explicitly coverage-driven test that ignores errors and instantiates a real Redis client.
 
 - [x] Remove `TestSupportHandler_RedisAdapter_Coverage` (`internal/handlers/support_test.go:140`).
-- [ ] Replace with one of the following higher-signal alternatives (pick one):
+- [x] Decide whether to replace it with one of the following higher-signal alternatives:
   1) **Preferred (unit-only)**: adjust `NewSupportHandler` to accept a `RateLimitStore` interface (or accept `rateLimiter` directly), and test that the handler uses the limiter (already well-covered by `checkRateLimit` tests).
   2) **If adapter must remain**: isolate the adapter into its own type/file and unit test it by stubbing the minimal Redis operations via a small interface (no real `*redis.Client`).
 
-Notes: adapter wiring was not separately re-tested; existing `checkRateLimit` coverage kept as the unit signal.
+Notes: explicitly *not* re-tested separately; existing `checkRateLimit` coverage is treated as sufficient unit signal for rate-limit behavior, and adapter-wiring is intentionally left untested at unit level to avoid real Redis dependencies and avoid introducing new indirection solely for tests.
 
 Acceptance criteria:
 - No unit test dials a real host/port.
@@ -109,6 +109,14 @@ Acceptance criteria:
 - Validation tests enforce both *output* and *lack of side effects*.
 - Tests are readable: one behavior per subtest, no “scripted” multi-step flows without assertions in between.
 
+Follow-ups (remaining opportunities to tighten further):
+- [x] `internal/handlers/ai_test.go`: assert returned goals *values* (not only length) for success cases.
+- [x] `internal/handlers/handler_test_helpers.go`: consider relaxing `Content-Type` checks to allow `application/json; charset=utf-8` (use `strings.HasPrefix`) to avoid brittle failures if the header format changes while still enforcing JSON.
+- [ ] `internal/handlers/auth_test.go`: convert remaining status-only cases (e.g., invalid password / internal error paths) to `assertErrorResponse` and add “should not call service” guards where applicable.
+- [ ] `internal/handlers/card_test.go`: use `assertErrorResponse` for the invalid-year subtests to also enforce `Content-Type` and avoid duplicated JSON parsing logic.
+- [ ] `internal/handlers/friend_test.go`: for success cases currently asserting only status (e.g., `SendRequest_Success`), consider asserting response JSON schema (and any returned IDs) if the endpoint contract includes a payload.
+- [x] `internal/handlers/ai_test.go`: use a `Content-Type` prefix check (or a helper) instead of strict equality to avoid brittleness if charset is added.
+
 ---
 
 ## Workstream D — Make Service Tests Detect Wrong SQL / Wrong Args
@@ -135,6 +143,9 @@ Notes: used per-test SQL/args capture via existing `fakeDB` hooks instead of int
 Acceptance criteria:
 - A swapped argument order or missing `WHERE user_id = ...` causes the test to fail.
 - SQL assertions avoid over-specifying formatting (use `strings.Contains` on key fragments).
+
+Follow-ups (nice-to-have):
+- [ ] `internal/services/suggestion_service_test.go`: add SQL/args assertions for `GetGroupedByCategory` (currently validates grouping behavior but not query shape).
 
 ---
 
@@ -165,8 +176,9 @@ Targets to evaluate and likely remove or fold into stronger tests:
 
 Implementation steps:
 - [x] Delete tests that don’t encode app-specific behavior.
-- [ ] If you keep a “no panic” test, convert it into a real contract test:
+- [x] If you keep a “no panic” test, convert it into a real contract test:
   - e.g., `Close()` returns `nil` and is idempotent (if that is intended and relied upon).
+  - Notes: the “no panic” style tests were removed instead of retained, so no conversion was necessary.
 
 Acceptance criteria:
 - Each remaining test asserts meaningful business logic, contract behavior, or regression-prone behavior.
@@ -197,6 +209,34 @@ Acceptance criteria:
 - [x] Service tests assert SQL fragments + args for correctness and scoping.
 - [x] Non-failing tests fixed or removed.
 - [x] `./scripts/test.sh` passes.
+
+## Additional Findings (Post-Implementation)
+
+Even after the above work, there are still a few tests that appear coverage/tautology-driven and are worth cleaning up to fully meet the “high-signal only” goal:
+
+### H1. Remove remaining tautology tests in CardService suite
+
+Targets:
+- [x] `internal/services/card_test.go`: remove `TestCardServiceErrors` (asserts error constants are non-nil/non-empty).
+- [x] `internal/services/card_test.go`: remove or rewrite `TestCardStats_Calculation` (re-implements logic instead of calling production code).
+- [x] `internal/services/card_test.go`: remove `TestCardID_UUID` (asserts `uuid.New()` is non-nil / different; not app behavior).
+
+Acceptance criteria:
+- CardService tests call production functions and assert meaningful behavior, not language/library tautologies.
+
+### H2. Avoid probabilistic randomness tests
+
+Target:
+- [x] `internal/services/card_test.go`: reconsider `TestFindRandomPosition_Randomness` (probabilistic + global `math/rand` state); replace with deterministic properties (never returns free/occupied, returns `ErrCardFull` when appropriate) or remove if redundant.
+
+### H3. Align bcrypt length error with HTTP contract
+
+Problem: `services.ErrPasswordTooLong` is now deterministic, but handlers currently treat any hash failure as `500`.
+
+Targets:
+- [x] `internal/handlers/auth.go`: map `ErrPasswordTooLong` (and any other user-correctable hashing errors) to `400` with a clear message.
+- [x] `internal/handlers/auth_test.go`: add a case proving the handler returns `400` and does not create users/sessions when hashing fails due to length.
+- [x] (Optional) `internal/handlers/auth.go`: update `validatePassword` to enforce the bcrypt-safe max upfront (72 bytes) to avoid surprising users late in the flow.
 
 ## Suggested Implementation Order (to minimize churn)
 

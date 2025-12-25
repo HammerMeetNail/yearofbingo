@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -11,7 +12,7 @@ func assertErrorResponse(t *testing.T, rr *httptest.ResponseRecorder, status int
 	if rr.Code != status {
 		t.Fatalf("expected status %d, got %d", status, rr.Code)
 	}
-	if ct := rr.Result().Header.Get("Content-Type"); ct != "application/json" {
+	if ct := rr.Result().Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
 		t.Fatalf("expected content type application/json, got %q", ct)
 	}
 

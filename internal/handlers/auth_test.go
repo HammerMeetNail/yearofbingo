@@ -36,9 +36,9 @@ func TestValidatePassword(t *testing.T) {
 		},
 		{
 			name:     "too long",
-			password: string(make([]byte, 129)),
+			password: string(make([]byte, 73)),
 			wantErr:  true,
-			errMsg:   "password must be at most 128 characters",
+			errMsg:   "password must be at most 72 bytes",
 		},
 		{
 			name:     "no uppercase",
@@ -64,9 +64,9 @@ func TestValidatePassword(t *testing.T) {
 			wantErr:  false,
 		},
 		{
-			name:     "at max length 128",
-			password: "Aa1" + strings.Repeat("x", 125),
-			wantErr:  false, // Exactly 128 characters, meets all requirements
+			name:     "at max length 72 bytes",
+			password: "Aa1" + strings.Repeat("x", 69),
+			wantErr:  false, // Exactly 72 bytes, meets all requirements
 		},
 		{
 			name:     "with special characters",
@@ -244,6 +244,31 @@ func TestAuthHandler_Register_HashPasswordError(t *testing.T) {
 	if rr.Code != http.StatusInternalServerError {
 		t.Fatalf("expected status 500, got %d", rr.Code)
 	}
+}
+
+func TestAuthHandler_Register_HashPasswordTooLong(t *testing.T) {
+	mockAuth := &mockAuthService{
+		HashPasswordFunc: func(password string) (string, error) {
+			return "", services.ErrPasswordTooLong
+		},
+	}
+	mockUser := &mockUserService{
+		CreateFunc: func(ctx context.Context, params models.CreateUserParams) (*models.User, error) {
+			t.Fatal("Create should not be called when password is too long")
+			return nil, nil
+		},
+	}
+	handler := NewAuthHandler(mockUser, mockAuth, nil, false)
+
+	body := RegisterRequest{Email: "test@example.com", Password: "SecurePass123", Username: "testuser"}
+	bodyBytes, _ := json.Marshal(body)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/register", bytes.NewBuffer(bodyBytes))
+	rr := httptest.NewRecorder()
+
+	handler.Register(rr, req)
+
+	assertErrorResponse(t, rr, http.StatusBadRequest, "Password is too long")
 }
 
 func TestAuthHandler_Register_CreateUserError(t *testing.T) {

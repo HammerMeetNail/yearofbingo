@@ -470,7 +470,7 @@ func TestGenerate(t *testing.T) {
 			if w.Code != tt.expectedStatus {
 				t.Errorf("expected status %d, got %d", tt.expectedStatus, w.Code)
 			}
-			if ct := w.Result().Header.Get("Content-Type"); ct != "application/json" {
+			if ct := w.Result().Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
 				t.Fatalf("expected content type application/json, got %q", ct)
 			}
 
@@ -481,6 +481,11 @@ func TestGenerate(t *testing.T) {
 				}
 				if len(response.Goals) != len(tt.expectedGoals) {
 					t.Fatalf("expected %d goals, got %d", len(tt.expectedGoals), len(response.Goals))
+				}
+				for i, goal := range tt.expectedGoals {
+					if response.Goals[i] != goal {
+						t.Fatalf("expected goal %d to be %q, got %q", i, goal, response.Goals[i])
+					}
 				}
 				if tt.freeRemaining == nil && response.FreeRemaining != nil {
 					t.Fatalf("expected free_remaining to be omitted, got %d", *response.FreeRemaining)
