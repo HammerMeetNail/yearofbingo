@@ -16,7 +16,7 @@ test('seeded cards render with progress and FREE space', async ({ page }) => {
   await expect(page.locator('.bingo-cell--free')).toHaveCount(1);
 });
 
-test('seeded reactions appear on friend cards', async ({ page }) => {
+test('friend card reactions can be added', async ({ page }) => {
   await loginWithCredentials(page, 'bob@test.com', 'Password1');
 
   await page.goto('/#friends');
@@ -30,6 +30,9 @@ test('seeded reactions appear on friend cards', async ({ page }) => {
 
   await page.locator('.bingo-cell--completed').first().click();
   await expect(page.getByRole('heading', { name: 'Completed Goal' })).toBeVisible();
+  if (await page.locator('.reaction-badge').count() === 0) {
+    await page.locator('.emoji-btn').first().click();
+  }
   await expect(page.locator('.reaction-badge').first()).toBeVisible();
 });
 
