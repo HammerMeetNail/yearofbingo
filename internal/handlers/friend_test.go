@@ -600,6 +600,28 @@ func TestFriendHandler_ErrorMappings(t *testing.T) {
 		}
 	})
 
+	t.Run("list sent error", func(t *testing.T) {
+		handler := NewFriendHandler(&mockFriendService{
+			ListFriendsFunc: func(ctx context.Context, userID uuid.UUID) ([]models.FriendWithUser, error) {
+				return []models.FriendWithUser{}, nil
+			},
+			ListPendingRequestsFunc: func(ctx context.Context, userID uuid.UUID) ([]models.FriendRequest, error) {
+				return []models.FriendRequest{}, nil
+			},
+			ListSentRequestsFunc: func(ctx context.Context, userID uuid.UUID) ([]models.FriendWithUser, error) {
+				return nil, errors.New("boom")
+			},
+		}, &mockCardService{})
+
+		req := httptest.NewRequest(http.MethodGet, "/api/friends", nil)
+		req = req.WithContext(context.WithValue(req.Context(), userContextKey, user))
+		rr := httptest.NewRecorder()
+		handler.List(rr, req)
+		if rr.Code != http.StatusInternalServerError {
+			t.Fatalf("expected 500, got %d", rr.Code)
+		}
+	})
+
 	t.Run("get friend card no visible cards", func(t *testing.T) {
 		friendUserID := uuid.New()
 		handler := NewFriendHandler(&mockFriendService{
@@ -637,6 +659,51 @@ func TestFriendHandler_ErrorMappings(t *testing.T) {
 		handler.GetFriendCard(rr, req)
 		if rr.Code != http.StatusForbidden {
 			t.Fatalf("expected 403, got %d", rr.Code)
+		}
+	})
+
+	t.Run("get friend card list cards error", func(t *testing.T) {
+		friendUserID := uuid.New()
+		handler := NewFriendHandler(&mockFriendService{
+			GetFriendUserIDFunc: func(ctx context.Context, currentUserID, friendshipID uuid.UUID) (uuid.UUID, error) {
+				return friendUserID, nil
+			},
+		}, &mockCardService{
+			ListByUserFunc: func(ctx context.Context, userID uuid.UUID) ([]*models.BingoCard, error) {
+				return nil, errors.New("boom")
+			},
+		})
+
+		req := httptest.NewRequest(http.MethodGet, "/api/friends/"+friendshipID.String()+"/card", nil)
+		req = req.WithContext(context.WithValue(req.Context(), userContextKey, user))
+		rr := httptest.NewRecorder()
+		handler.GetFriendCard(rr, req)
+		if rr.Code != http.StatusInternalServerError {
+			t.Fatalf("expected 500, got %d", rr.Code)
+		}
+	})
+
+	t.Run("get friend card list friends error", func(t *testing.T) {
+		friendUserID := uuid.New()
+		handler := NewFriendHandler(&mockFriendService{
+			GetFriendUserIDFunc: func(ctx context.Context, currentUserID, friendshipID uuid.UUID) (uuid.UUID, error) {
+				return friendUserID, nil
+			},
+			ListFriendsFunc: func(ctx context.Context, userID uuid.UUID) ([]models.FriendWithUser, error) {
+				return nil, errors.New("boom")
+			},
+		}, &mockCardService{
+			ListByUserFunc: func(ctx context.Context, userID uuid.UUID) ([]*models.BingoCard, error) {
+				return []*models.BingoCard{{ID: uuid.New(), UserID: friendUserID, IsFinalized: true, VisibleToFriends: true}}, nil
+			},
+		})
+
+		req := httptest.NewRequest(http.MethodGet, "/api/friends/"+friendshipID.String()+"/card", nil)
+		req = req.WithContext(context.WithValue(req.Context(), userContextKey, user))
+		rr := httptest.NewRecorder()
+		handler.GetFriendCard(rr, req)
+		if rr.Code != http.StatusInternalServerError {
+			t.Fatalf("expected 500, got %d", rr.Code)
 		}
 	})
 }

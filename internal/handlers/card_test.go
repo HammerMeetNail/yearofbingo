@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -514,6 +515,26 @@ func TestCardHandler_Archive_Unauthenticated(t *testing.T) {
 	}
 }
 
+func TestCardHandler_Archive_ServiceError(t *testing.T) {
+	user := &models.User{ID: uuid.New()}
+	mockCard := &mockCardService{
+		GetArchiveFunc: func(ctx context.Context, userID uuid.UUID) ([]*models.BingoCard, error) {
+			return nil, errors.New("archive error")
+		},
+	}
+	handler := NewCardHandler(mockCard)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/cards/archive", nil)
+	req = req.WithContext(SetUserInContext(req.Context(), user))
+	rr := httptest.NewRecorder()
+
+	handler.Archive(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected status 500, got %d", rr.Code)
+	}
+}
+
 func TestCardHandler_Stats_Unauthenticated(t *testing.T) {
 	handler := NewCardHandler(nil)
 
@@ -600,6 +621,28 @@ func TestCardHandler_BulkUpdateVisibility_InvalidCardID(t *testing.T) {
 	}
 }
 
+func TestCardHandler_BulkUpdateVisibility_ServiceError(t *testing.T) {
+	user := &models.User{ID: uuid.New()}
+	mockCard := &mockCardService{
+		BulkUpdateVisibilityFunc: func(ctx context.Context, userID uuid.UUID, cardIDs []uuid.UUID, visibleToFriends bool) (int, error) {
+			return 0, errors.New("bulk visibility error")
+		},
+	}
+	handler := NewCardHandler(mockCard)
+
+	body := BulkUpdateVisibilityRequest{CardIDs: []string{uuid.New().String()}, VisibleToFriends: true}
+	bodyBytes, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPut, "/api/cards/visibility/bulk", bytes.NewBuffer(bodyBytes))
+	req = req.WithContext(SetUserInContext(req.Context(), user))
+	rr := httptest.NewRecorder()
+
+	handler.BulkUpdateVisibility(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected status 500, got %d", rr.Code)
+	}
+}
+
 func TestCardHandler_BulkDelete_Unauthenticated(t *testing.T) {
 	handler := NewCardHandler(nil)
 
@@ -632,6 +675,28 @@ func TestCardHandler_BulkDelete_EmptyCardIDs(t *testing.T) {
 	}
 }
 
+func TestCardHandler_BulkDelete_ServiceError(t *testing.T) {
+	user := &models.User{ID: uuid.New()}
+	mockCard := &mockCardService{
+		BulkDeleteFunc: func(ctx context.Context, userID uuid.UUID, cardIDs []uuid.UUID) (int, error) {
+			return 0, errors.New("bulk delete error")
+		},
+	}
+	handler := NewCardHandler(mockCard)
+
+	body := BulkDeleteRequest{CardIDs: []string{uuid.New().String()}}
+	bodyBytes, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodDelete, "/api/cards/bulk", bytes.NewBuffer(bodyBytes))
+	req = req.WithContext(SetUserInContext(req.Context(), user))
+	rr := httptest.NewRecorder()
+
+	handler.BulkDelete(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected status 500, got %d", rr.Code)
+	}
+}
+
 func TestCardHandler_BulkUpdateArchive_Unauthenticated(t *testing.T) {
 	handler := NewCardHandler(nil)
 
@@ -661,6 +726,28 @@ func TestCardHandler_BulkUpdateArchive_EmptyCardIDs(t *testing.T) {
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected status 400, got %d", rr.Code)
+	}
+}
+
+func TestCardHandler_BulkUpdateArchive_ServiceError(t *testing.T) {
+	user := &models.User{ID: uuid.New()}
+	mockCard := &mockCardService{
+		BulkUpdateArchiveFunc: func(ctx context.Context, userID uuid.UUID, cardIDs []uuid.UUID, isArchived bool) (int, error) {
+			return 0, errors.New("bulk archive error")
+		},
+	}
+	handler := NewCardHandler(mockCard)
+
+	body := BulkUpdateArchiveRequest{CardIDs: []string{uuid.New().String()}, IsArchived: true}
+	bodyBytes, _ := json.Marshal(body)
+	req := httptest.NewRequest(http.MethodPut, "/api/cards/archive/bulk", bytes.NewBuffer(bodyBytes))
+	req = req.WithContext(SetUserInContext(req.Context(), user))
+	rr := httptest.NewRecorder()
+
+	handler.BulkUpdateArchive(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected status 500, got %d", rr.Code)
 	}
 }
 
@@ -977,6 +1064,49 @@ func TestCardHandler_ListExportable_Success(t *testing.T) {
 	}
 }
 
+func TestCardHandler_ListExportable_ListError(t *testing.T) {
+	user := &models.User{ID: uuid.New()}
+	mockCard := &mockCardService{
+		ListByUserFunc: func(ctx context.Context, userID uuid.UUID) ([]*models.BingoCard, error) {
+			return nil, errors.New("list error")
+		},
+	}
+	handler := NewCardHandler(mockCard)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/cards/exportable", nil)
+	req = req.WithContext(SetUserInContext(req.Context(), user))
+	rr := httptest.NewRecorder()
+
+	handler.ListExportable(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d", rr.Code)
+	}
+}
+
+func TestCardHandler_ListExportable_ArchiveError(t *testing.T) {
+	user := &models.User{ID: uuid.New()}
+	mockCard := &mockCardService{
+		ListByUserFunc: func(ctx context.Context, userID uuid.UUID) ([]*models.BingoCard, error) {
+			return []*models.BingoCard{{ID: uuid.New(), UserID: userID}}, nil
+		},
+		GetArchiveFunc: func(ctx context.Context, userID uuid.UUID) ([]*models.BingoCard, error) {
+			return nil, errors.New("archive error")
+		},
+	}
+	handler := NewCardHandler(mockCard)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/cards/exportable", nil)
+	req = req.WithContext(SetUserInContext(req.Context(), user))
+	rr := httptest.NewRecorder()
+
+	handler.ListExportable(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d", rr.Code)
+	}
+}
+
 func TestCardHandler_CompleteUncompleteAndNotes_Success(t *testing.T) {
 	user := &models.User{ID: uuid.New()}
 	cardID := uuid.New()
@@ -1244,6 +1374,39 @@ func TestCardHandler_Import_Success(t *testing.T) {
 
 	if rr.Code != http.StatusCreated {
 		t.Fatalf("expected status 201, got %d", rr.Code)
+	}
+}
+
+func TestCardHandler_Import_ServiceError(t *testing.T) {
+	user := &models.User{ID: uuid.New()}
+	year := time.Now().Year()
+	mockCard := &mockCardService{
+		CheckForConflictFunc: func(ctx context.Context, userID uuid.UUID, year int, title *string) (*models.BingoCard, error) {
+			return nil, services.ErrCardNotFound
+		},
+		ImportFunc: func(ctx context.Context, params models.ImportCardParams) (*models.BingoCard, error) {
+			return nil, errors.New("import error")
+		},
+	}
+	handler := NewCardHandler(mockCard)
+
+	bodyBytes, _ := json.Marshal(ImportCardRequest{
+		Year:     year,
+		GridSize: 2,
+		Items: []ImportCardItem{
+			{Position: 0, Content: "a"},
+			{Position: 1, Content: "b"},
+			{Position: 2, Content: "c"},
+		},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/cards/import", bytes.NewBuffer(bodyBytes))
+	req = req.WithContext(SetUserInContext(req.Context(), user))
+	rr := httptest.NewRecorder()
+
+	handler.Import(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d", rr.Code)
 	}
 }
 

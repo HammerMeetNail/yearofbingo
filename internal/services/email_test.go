@@ -137,6 +137,24 @@ func TestEmailService_VerifyEmail_Expired(t *testing.T) {
 	}
 }
 
+func TestEmailService_VerifyEmail_UpdateError(t *testing.T) {
+	expires := time.Now().Add(1 * time.Hour)
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			return rowFromValues(uuid.New(), expires)
+		},
+		ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+			return fakeCommandTag{}, errors.New("update error")
+		},
+	}
+
+	service := NewEmailService(&config.EmailConfig{}, db)
+	err := service.VerifyEmail(context.Background(), "token")
+	if err == nil || !strings.Contains(err.Error(), "updating user verification status") {
+		t.Fatalf("expected update error, got %v", err)
+	}
+}
+
 func TestEmailService_VerifyEmail_Success(t *testing.T) {
 	userID := uuid.New()
 	expires := time.Now().Add(1 * time.Hour)

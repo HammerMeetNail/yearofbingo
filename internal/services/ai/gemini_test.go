@@ -119,6 +119,26 @@ func TestGenerateGoals(t *testing.T) {
 			wantTokens: 100,
 		},
 		{
+			name: "success-trims-extra-goals",
+			roundTrip: func(r *http.Request) (*http.Response, error) {
+				resp := geminiResponse{
+					Candidates: []geminiCandidate{
+						{
+							Content: geminiContent{
+								Parts: []geminiPart{
+									{Text: mustJSON(t, makeGoals(30))},
+								},
+							},
+							FinishReason: "STOP",
+						},
+					},
+					Usage: geminiUsage{},
+				}
+				return jsonHTTPResponse(t, http.StatusOK, resp), nil
+			},
+			wantGoals: 24,
+		},
+		{
 			name: "success-custom-count",
 			roundTrip: func(r *http.Request) (*http.Response, error) {
 				var req geminiRequest
@@ -227,6 +247,17 @@ func TestGenerateGoals(t *testing.T) {
 			wantErrIs: ErrRateLimitExceeded,
 		},
 		{
+			name: "provider-error",
+			roundTrip: func(r *http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: http.StatusBadGateway,
+					Header:     http.Header{"Content-Type": []string{"application/json"}},
+					Body:       io.NopCloser(strings.NewReader("")),
+				}, nil
+			},
+			wantErrIs: ErrAIProviderUnavailable,
+		},
+		{
 			name: "invalid-json",
 			roundTrip: func(r *http.Request) (*http.Response, error) {
 				resp := geminiResponse{
@@ -238,6 +269,33 @@ func TestGenerateGoals(t *testing.T) {
 							FinishReason: "STOP",
 						},
 					},
+				}
+				return jsonHTTPResponse(t, http.StatusOK, resp), nil
+			},
+			wantErrIs: ErrAIProviderUnavailable,
+		},
+		{
+			name: "invalid-response-body",
+			roundTrip: func(r *http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     http.Header{"Content-Type": []string{"application/json"}},
+					Body:       io.NopCloser(strings.NewReader("not-json")),
+				}, nil
+			},
+			wantErrIs: ErrAIProviderUnavailable,
+		},
+		{
+			name: "empty-content-parts",
+			roundTrip: func(r *http.Request) (*http.Response, error) {
+				resp := geminiResponse{
+					Candidates: []geminiCandidate{
+						{
+							Content:      geminiContent{Parts: []geminiPart{}},
+							FinishReason: "STOP",
+						},
+					},
+					Usage: geminiUsage{},
 				}
 				return jsonHTTPResponse(t, http.StatusOK, resp), nil
 			},

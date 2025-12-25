@@ -920,6 +920,101 @@ func TestCardService_Clone_DuplicateTitleMapped(t *testing.T) {
 	}
 }
 
+func TestCardService_Clone_BeginError(t *testing.T) {
+	userID := uuid.New()
+	cardID := uuid.New()
+	items := [][]any{
+		{uuid.New(), cardID, 0, "A", false, nil, nil, nil, time.Now()},
+	}
+	db := newCardDB(cardID, userID, 2, false, nil, false, items)
+	db.BeginFunc = func(ctx context.Context) (Tx, error) {
+		return nil, errors.New("begin error")
+	}
+
+	svc := NewCardService(db)
+	_, err := svc.Clone(context.Background(), userID, cardID, CloneParams{})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestCardService_Clone_CreateError(t *testing.T) {
+	userID := uuid.New()
+	cardID := uuid.New()
+	items := [][]any{
+		{uuid.New(), cardID, 0, "A", false, nil, nil, nil, time.Now()},
+	}
+	db := newCardDB(cardID, userID, 2, false, nil, false, items)
+	db.BeginFunc = func(ctx context.Context) (Tx, error) {
+		return &fakeTx{
+			QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+				return fakeRow{scanFunc: func(dest ...any) error {
+					return errors.New("create error")
+				}}
+			},
+		}, nil
+	}
+
+	svc := NewCardService(db)
+	_, err := svc.Clone(context.Background(), userID, cardID, CloneParams{})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestCardService_Clone_CopyItemError(t *testing.T) {
+	userID := uuid.New()
+	cardID := uuid.New()
+	items := [][]any{
+		{uuid.New(), cardID, 0, "A", false, nil, nil, nil, time.Now()},
+	}
+	db := newCardDB(cardID, userID, 2, false, nil, false, items)
+	db.BeginFunc = func(ctx context.Context) (Tx, error) {
+		return &fakeTx{
+			QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+				return rowFromValues(cardRowValues(uuid.New(), userID, 2, false, nil, false)...)
+			},
+			ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+				return fakeCommandTag{}, errors.New("copy error")
+			},
+		}, nil
+	}
+
+	svc := NewCardService(db)
+	_, err := svc.Clone(context.Background(), userID, cardID, CloneParams{})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestCardService_Clone_CommitError(t *testing.T) {
+	userID := uuid.New()
+	cardID := uuid.New()
+	items := [][]any{
+		{uuid.New(), cardID, 0, "A", false, nil, nil, nil, time.Now()},
+	}
+	db := newCardDB(cardID, userID, 2, false, nil, false, items)
+	db.BeginFunc = func(ctx context.Context) (Tx, error) {
+		return &fakeTx{
+			QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+				return rowFromValues(cardRowValues(uuid.New(), userID, 2, false, nil, false)...)
+			},
+			ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+				return fakeCommandTag{rowsAffected: 1}, nil
+			},
+			CommitFunc: func(ctx context.Context) error {
+				return errors.New("commit error")
+			},
+		}, nil
+	}
+
+	svc := NewCardService(db)
+	_, err := svc.Clone(context.Background(), userID, cardID, CloneParams{})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 func TestCardService_GetByID_NotFound(t *testing.T) {
 	db := &fakeDB{
 		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
@@ -947,6 +1042,25 @@ func TestCardService_GetByID_QueryError(t *testing.T) {
 
 	svc := NewCardService(db)
 	_, err := svc.GetByID(context.Background(), uuid.New())
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestCardService_GetByID_ItemsError(t *testing.T) {
+	userID := uuid.New()
+	cardID := uuid.New()
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			return rowFromValues(cardRowValues(cardID, userID, 2, false, nil, false)...)
+		},
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			return nil, errors.New("items error")
+		},
+	}
+
+	svc := NewCardService(db)
+	_, err := svc.GetByID(context.Background(), cardID)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -986,6 +1100,41 @@ func TestCardService_GetByUserAndYear_NotFound(t *testing.T) {
 	_, err := svc.GetByUserAndYear(context.Background(), uuid.New(), 2024)
 	if !errors.Is(err, ErrCardNotFound) {
 		t.Fatalf("expected ErrCardNotFound, got %v", err)
+	}
+}
+
+func TestCardService_GetByUserAndYear_QueryError(t *testing.T) {
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			return fakeRow{scanFunc: func(dest ...any) error {
+				return errors.New("boom")
+			}}
+		},
+	}
+
+	svc := NewCardService(db)
+	_, err := svc.GetByUserAndYear(context.Background(), uuid.New(), 2024)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestCardService_GetByUserAndYear_ItemsError(t *testing.T) {
+	userID := uuid.New()
+	cardID := uuid.New()
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			return rowFromValues(cardRowValues(cardID, userID, 2, false, nil, false)...)
+		},
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			return nil, errors.New("items error")
+		},
+	}
+
+	svc := NewCardService(db)
+	_, err := svc.GetByUserAndYear(context.Background(), userID, 2024)
+	if err == nil {
+		t.Fatal("expected error")
 	}
 }
 
@@ -1064,6 +1213,21 @@ func TestCardService_ListByUser_Success(t *testing.T) {
 	}
 }
 
+func TestCardService_ListByUser_QueryError(t *testing.T) {
+	userID := uuid.New()
+	db := &fakeDB{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			return nil, errors.New("boom")
+		},
+	}
+
+	svc := NewCardService(db)
+	_, err := svc.ListByUser(context.Background(), userID)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 func TestCardService_ListByUser_ScanError(t *testing.T) {
 	userID := uuid.New()
 	db := &fakeDB{
@@ -1112,6 +1276,52 @@ func TestCardService_UpdateMeta_TitleTooLong(t *testing.T) {
 	})
 	if !errors.Is(err, ErrTitleTooLong) {
 		t.Fatalf("expected ErrTitleTooLong, got %v", err)
+	}
+}
+
+func TestCardService_UpdateMeta_TitleExists(t *testing.T) {
+	userID := uuid.New()
+	cardID := uuid.New()
+	db := newCardDB(cardID, userID, 5, true, nil, false, [][]any{})
+	db.QueryRowFunc = func(ctx context.Context, sql string, args ...any) Row {
+		if strings.Contains(sql, "EXISTS") {
+			return fakeRow{scanFunc: func(dest ...any) error {
+				return assignRow(dest, []any{true})
+			}}
+		}
+		return rowFromValues(cardRowValues(cardID, userID, 5, true, nil, false)...)
+	}
+	title := "Dup"
+
+	svc := NewCardService(db)
+	_, err := svc.UpdateMeta(context.Background(), userID, cardID, models.UpdateCardMetaParams{
+		Title: &title,
+	})
+	if !errors.Is(err, ErrCardTitleExists) {
+		t.Fatalf("expected ErrCardTitleExists, got %v", err)
+	}
+}
+
+func TestCardService_UpdateMeta_TitleCheckError(t *testing.T) {
+	userID := uuid.New()
+	cardID := uuid.New()
+	db := newCardDB(cardID, userID, 5, true, nil, false, [][]any{})
+	db.QueryRowFunc = func(ctx context.Context, sql string, args ...any) Row {
+		if strings.Contains(sql, "EXISTS") {
+			return fakeRow{scanFunc: func(dest ...any) error {
+				return errors.New("boom")
+			}}
+		}
+		return rowFromValues(cardRowValues(cardID, userID, 5, true, nil, false)...)
+	}
+	title := "Unique"
+
+	svc := NewCardService(db)
+	_, err := svc.UpdateMeta(context.Background(), userID, cardID, models.UpdateCardMetaParams{
+		Title: &title,
+	})
+	if err == nil {
+		t.Fatal("expected error")
 	}
 }
 
@@ -1424,6 +1634,117 @@ func TestCardService_MoveFreeSpace_Success(t *testing.T) {
 	}
 }
 
+func TestCardService_MoveFreeSpace_UpdateError(t *testing.T) {
+	free := 0
+	card := &models.BingoCard{
+		ID:           uuid.New(),
+		GridSize:     2,
+		HasFreeSpace: true,
+		FreeSpacePos: &free,
+		Items:        []models.BingoItem{},
+	}
+
+	db := &fakeDB{
+		BeginFunc: func(ctx context.Context) (Tx, error) {
+			return &fakeTx{
+				ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+					return fakeCommandTag{}, errors.New("update error")
+				},
+			}, nil
+		},
+	}
+
+	svc := NewCardService(db)
+	err := svc.moveFreeSpace(context.Background(), card, 0, 1)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestCardService_MoveFreeSpace_RelocateError(t *testing.T) {
+	free := 0
+	card := &models.BingoCard{
+		ID:           uuid.New(),
+		GridSize:     2,
+		HasFreeSpace: true,
+		FreeSpacePos: &free,
+		Items: []models.BingoItem{
+			{ID: uuid.New(), Position: 1},
+		},
+	}
+	call := 0
+	db := &fakeDB{
+		BeginFunc: func(ctx context.Context) (Tx, error) {
+			return &fakeTx{
+				ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+					call++
+					if call == 2 {
+						return fakeCommandTag{}, errors.New("relocate error")
+					}
+					return fakeCommandTag{rowsAffected: 1}, nil
+				},
+			}, nil
+		},
+	}
+
+	svc := NewCardService(db)
+	err := svc.moveFreeSpace(context.Background(), card, 0, 1)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestCardService_MoveFreeSpace_CommitError(t *testing.T) {
+	free := 0
+	card := &models.BingoCard{
+		ID:           uuid.New(),
+		GridSize:     2,
+		HasFreeSpace: true,
+		FreeSpacePos: &free,
+	}
+
+	db := &fakeDB{
+		BeginFunc: func(ctx context.Context) (Tx, error) {
+			return &fakeTx{
+				ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+					return fakeCommandTag{rowsAffected: 1}, nil
+				},
+				CommitFunc: func(ctx context.Context) error {
+					return errors.New("commit error")
+				},
+			}, nil
+		},
+	}
+
+	svc := NewCardService(db)
+	err := svc.moveFreeSpace(context.Background(), card, 0, 1)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestCardService_MoveFreeSpace_NoSpaceForFree(t *testing.T) {
+	free := 0
+	card := &models.BingoCard{
+		ID:           uuid.New(),
+		GridSize:     2,
+		HasFreeSpace: true,
+		FreeSpacePos: &free,
+		Items: []models.BingoItem{
+			{ID: uuid.New(), Position: 0},
+			{ID: uuid.New(), Position: 1},
+			{ID: uuid.New(), Position: 2},
+			{ID: uuid.New(), Position: 3},
+		},
+	}
+
+	svc := NewCardService(&fakeDB{})
+	err := svc.moveFreeSpace(context.Background(), card, 0, 1)
+	if !errors.Is(err, ErrNoSpaceForFree) {
+		t.Fatalf("expected ErrNoSpaceForFree, got %v", err)
+	}
+}
+
 func TestCardService_SwapItems_BothItems(t *testing.T) {
 	userID := uuid.New()
 	cardID := uuid.New()
@@ -1444,6 +1765,29 @@ func TestCardService_SwapItems_BothItems(t *testing.T) {
 	svc := NewCardService(db)
 	if err := svc.SwapItems(context.Background(), userID, cardID, 0, 1); err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestCardService_SwapItems_MoveTempError(t *testing.T) {
+	userID := uuid.New()
+	cardID := uuid.New()
+	items := [][]any{
+		{uuid.New(), cardID, 0, "A", false, nil, nil, nil, time.Now()},
+		{uuid.New(), cardID, 1, "B", false, nil, nil, nil, time.Now()},
+	}
+	db := newCardDB(cardID, userID, 2, false, nil, false, items)
+	db.BeginFunc = func(ctx context.Context) (Tx, error) {
+		return &fakeTx{
+			ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+				return fakeCommandTag{}, errors.New("move temp error")
+			},
+		}, nil
+	}
+
+	svc := NewCardService(db)
+	err := svc.SwapItems(context.Background(), userID, cardID, 0, 1)
+	if err == nil {
+		t.Fatal("expected error")
 	}
 }
 
@@ -1654,6 +1998,57 @@ func TestCardService_Shuffle_WithItems(t *testing.T) {
 	}
 }
 
+func TestCardService_Shuffle_ClearError(t *testing.T) {
+	userID := uuid.New()
+	cardID := uuid.New()
+	items := [][]any{
+		{uuid.New(), cardID, 0, "A", false, nil, nil, nil, time.Now()},
+		{uuid.New(), cardID, 1, "B", false, nil, nil, nil, time.Now()},
+	}
+	db := newCardDB(cardID, userID, 2, false, nil, false, items)
+	db.BeginFunc = func(ctx context.Context) (Tx, error) {
+		return &fakeTx{
+			ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+				return fakeCommandTag{}, errors.New("clear error")
+			},
+		}, nil
+	}
+
+	svc := NewCardService(db)
+	_, err := svc.Shuffle(context.Background(), userID, cardID)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestCardService_Shuffle_AssignError(t *testing.T) {
+	userID := uuid.New()
+	cardID := uuid.New()
+	items := [][]any{
+		{uuid.New(), cardID, 0, "A", false, nil, nil, nil, time.Now()},
+		{uuid.New(), cardID, 1, "B", false, nil, nil, nil, time.Now()},
+	}
+	db := newCardDB(cardID, userID, 2, false, nil, false, items)
+	call := 0
+	db.BeginFunc = func(ctx context.Context) (Tx, error) {
+		return &fakeTx{
+			ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+				call++
+				if call == 3 {
+					return fakeCommandTag{}, errors.New("assign error")
+				}
+				return fakeCommandTag{rowsAffected: 1}, nil
+			},
+		}, nil
+	}
+
+	svc := NewCardService(db)
+	_, err := svc.Shuffle(context.Background(), userID, cardID)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 func TestCardService_Shuffle_CommitError(t *testing.T) {
 	userID := uuid.New()
 	cardID := uuid.New()
@@ -1719,6 +2114,27 @@ func TestCardService_Finalize_NotOwner(t *testing.T) {
 	_, err := svc.Finalize(context.Background(), userID, cardID, nil)
 	if !errors.Is(err, ErrNotCardOwner) {
 		t.Fatalf("expected ErrNotCardOwner, got %v", err)
+	}
+}
+
+func TestCardService_Finalize_UpdateError(t *testing.T) {
+	userID := uuid.New()
+	cardID := uuid.New()
+	items := [][]any{
+		{uuid.New(), cardID, 0, "A", false, nil, nil, nil, time.Now()},
+		{uuid.New(), cardID, 1, "B", false, nil, nil, nil, time.Now()},
+		{uuid.New(), cardID, 2, "C", false, nil, nil, nil, time.Now()},
+		{uuid.New(), cardID, 3, "D", false, nil, nil, nil, time.Now()},
+	}
+	db := newCardDB(cardID, userID, 2, false, nil, false, items)
+	db.ExecFunc = func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+		return fakeCommandTag{}, errors.New("update error")
+	}
+
+	svc := NewCardService(db)
+	_, err := svc.Finalize(context.Background(), userID, cardID, nil)
+	if err == nil {
+		t.Fatal("expected error")
 	}
 }
 
@@ -1808,6 +2224,81 @@ func TestCardService_UpdateConfig_EnableFree_OddGrid(t *testing.T) {
 	}
 }
 
+func TestCardService_UpdateConfig_RelocateError(t *testing.T) {
+	userID := uuid.New()
+	cardID := uuid.New()
+	items := [][]any{
+		{uuid.New(), cardID, 4, "A", false, nil, nil, nil, time.Now()},
+	}
+	db := newCardDB(cardID, userID, 3, false, nil, false, items)
+	db.BeginFunc = func(ctx context.Context) (Tx, error) {
+		return &fakeTx{
+			ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+				if strings.Contains(sql, "UPDATE bingo_items") {
+					return fakeCommandTag{}, errors.New("relocate error")
+				}
+				return fakeCommandTag{rowsAffected: 1}, nil
+			},
+		}, nil
+	}
+
+	svc := NewCardService(db)
+	enable := true
+	_, err := svc.UpdateConfig(context.Background(), userID, cardID, models.UpdateCardConfigParams{
+		HasFreeSpace: &enable,
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestCardService_UpdateConfig_UpdateError(t *testing.T) {
+	userID := uuid.New()
+	cardID := uuid.New()
+	db := newCardDB(cardID, userID, 2, false, nil, false, [][]any{})
+	db.BeginFunc = func(ctx context.Context) (Tx, error) {
+		return &fakeTx{
+			ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+				return fakeCommandTag{}, errors.New("update error")
+			},
+		}, nil
+	}
+	header := "BI"
+
+	svc := NewCardService(db)
+	_, err := svc.UpdateConfig(context.Background(), userID, cardID, models.UpdateCardConfigParams{
+		HeaderText: &header,
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestCardService_UpdateConfig_CommitError(t *testing.T) {
+	userID := uuid.New()
+	cardID := uuid.New()
+	db := newCardDB(cardID, userID, 2, false, nil, false, [][]any{})
+	db.BeginFunc = func(ctx context.Context) (Tx, error) {
+		return &fakeTx{
+			ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+				return fakeCommandTag{rowsAffected: 1}, nil
+			},
+			CommitFunc: func(ctx context.Context) error {
+				return errors.New("commit error")
+			},
+		}, nil
+	}
+	header := "BI"
+
+	svc := NewCardService(db)
+	_, err := svc.UpdateConfig(context.Background(), userID, cardID, models.UpdateCardConfigParams{
+		HeaderText: &header,
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 func TestCardService_Finalize_AlreadyFinalized(t *testing.T) {
 	userID := uuid.New()
 	cardID := uuid.New()
@@ -1842,6 +2333,41 @@ func TestCardService_CheckForConflict_Found(t *testing.T) {
 	}
 	if len(card.Items) != 1 {
 		t.Fatalf("expected 1 item, got %d", len(card.Items))
+	}
+}
+
+func TestCardService_CheckForConflict_QueryError(t *testing.T) {
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			return fakeRow{scanFunc: func(dest ...any) error {
+				return errors.New("boom")
+			}}
+		},
+	}
+
+	svc := NewCardService(db)
+	_, err := svc.CheckForConflict(context.Background(), uuid.New(), 2024, nil)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestCardService_CheckForConflict_ItemsError(t *testing.T) {
+	userID := uuid.New()
+	cardID := uuid.New()
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			return rowFromValues(cardRowValues(cardID, userID, 2, false, nil, false)...)
+		},
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			return nil, errors.New("items error")
+		},
+	}
+
+	svc := NewCardService(db)
+	_, err := svc.CheckForConflict(context.Background(), userID, 2024, nil)
+	if err == nil {
+		t.Fatal("expected error")
 	}
 }
 
@@ -1932,6 +2458,59 @@ func TestCardService_GetArchive_Success(t *testing.T) {
 	}
 }
 
+func TestCardService_GetArchive_QueryError(t *testing.T) {
+	db := &fakeDB{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			return nil, errors.New("boom")
+		},
+	}
+
+	svc := NewCardService(db)
+	_, err := svc.GetArchive(context.Background(), uuid.New())
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestCardService_GetArchive_ScanError(t *testing.T) {
+	userID := uuid.New()
+	db := &fakeDB{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			if strings.Contains(sql, "FROM bingo_cards") {
+				return &fakeRows{rows: [][]any{{"bad-id"}}}, nil
+			}
+			return &fakeRows{rows: [][]any{}}, nil
+		},
+	}
+
+	svc := NewCardService(db)
+	_, err := svc.GetArchive(context.Background(), userID)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestCardService_GetArchive_ItemsError(t *testing.T) {
+	userID := uuid.New()
+	cardID := uuid.New()
+	db := &fakeDB{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			if strings.Contains(sql, "FROM bingo_cards") {
+				return &fakeRows{rows: [][]any{
+					cardRowValues(cardID, userID, 2, false, nil, true),
+				}}, nil
+			}
+			return nil, errors.New("items error")
+		},
+	}
+
+	svc := NewCardService(db)
+	_, err := svc.GetArchive(context.Background(), userID)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 func TestCardService_Import_Success(t *testing.T) {
 	userID := uuid.New()
 	cardID := uuid.New()
@@ -2003,6 +2582,164 @@ func TestCardService_Import_Success(t *testing.T) {
 	}
 }
 
+func TestCardService_Import_BeginError(t *testing.T) {
+	db := &fakeDB{
+		BeginFunc: func(ctx context.Context) (Tx, error) {
+			return nil, errors.New("begin error")
+		},
+	}
+
+	svc := NewCardService(db)
+	_, err := svc.Import(context.Background(), models.ImportCardParams{
+		UserID:   uuid.New(),
+		Year:     2024,
+		GridSize: 2,
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestCardService_Import_CreateCardError(t *testing.T) {
+	db := &fakeDB{
+		BeginFunc: func(ctx context.Context) (Tx, error) {
+			return &fakeTx{
+				QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+					return fakeRow{scanFunc: func(dest ...any) error {
+						return errors.New("create error")
+					}}
+				},
+			}, nil
+		},
+	}
+
+	svc := NewCardService(db)
+	_, err := svc.Import(context.Background(), models.ImportCardParams{
+		UserID:   uuid.New(),
+		Year:     2024,
+		GridSize: 2,
+		Items: []models.ImportItem{
+			{Position: 0, Content: "A"},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestCardService_Import_CreateItemError(t *testing.T) {
+	userID := uuid.New()
+	cardID := uuid.New()
+	now := time.Now()
+	call := 0
+	db := &fakeDB{
+		BeginFunc: func(ctx context.Context) (Tx, error) {
+			return &fakeTx{
+				QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+					call++
+					if call == 1 {
+						return rowFromValues(
+							cardID,
+							userID,
+							2024,
+							nil,
+							nil,
+							2,
+							"BING",
+							false,
+							nil,
+							true,
+							false,
+							true,
+							false,
+							now,
+							now,
+						)
+					}
+					return fakeRow{scanFunc: func(dest ...any) error {
+						return errors.New("item error")
+					}}
+				},
+			}, nil
+		},
+	}
+
+	svc := NewCardService(db)
+	_, err := svc.Import(context.Background(), models.ImportCardParams{
+		UserID:   userID,
+		Year:     2024,
+		GridSize: 2,
+		Items: []models.ImportItem{
+			{Position: 0, Content: "A"},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestCardService_Import_CommitError(t *testing.T) {
+	userID := uuid.New()
+	cardID := uuid.New()
+	now := time.Now()
+	call := 0
+	db := &fakeDB{
+		BeginFunc: func(ctx context.Context) (Tx, error) {
+			return &fakeTx{
+				QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+					call++
+					if call == 1 {
+						return rowFromValues(
+							cardID,
+							userID,
+							2024,
+							nil,
+							nil,
+							2,
+							"BING",
+							false,
+							nil,
+							true,
+							false,
+							true,
+							false,
+							now,
+							now,
+						)
+					}
+					return rowFromValues(
+						uuid.New(),
+						cardID,
+						0,
+						"Item",
+						false,
+						nil,
+						nil,
+						nil,
+						now,
+					)
+				},
+				CommitFunc: func(ctx context.Context) error {
+					return errors.New("commit error")
+				},
+			}, nil
+		},
+	}
+
+	svc := NewCardService(db)
+	_, err := svc.Import(context.Background(), models.ImportCardParams{
+		UserID:   userID,
+		Year:     2024,
+		GridSize: 2,
+		Items: []models.ImportItem{
+			{Position: 0, Content: "Item"},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 func TestCardService_GetStats_AllCompleted(t *testing.T) {
 	userID := uuid.New()
 	cardID := uuid.New()
@@ -2031,6 +2768,18 @@ func TestCardService_GetStats_AllCompleted(t *testing.T) {
 	}
 	if stats.FirstCompletion == nil || stats.LastCompletion == nil {
 		t.Fatal("expected completion timestamps")
+	}
+}
+
+func TestCardService_GetStats_NotOwner(t *testing.T) {
+	userID := uuid.New()
+	cardID := uuid.New()
+	db := newCardDB(cardID, uuid.New(), 2, false, nil, true, [][]any{})
+
+	svc := NewCardService(db)
+	_, err := svc.GetStats(context.Background(), userID, cardID)
+	if !errors.Is(err, ErrNotCardOwner) {
+		t.Fatalf("expected ErrNotCardOwner, got %v", err)
 	}
 }
 

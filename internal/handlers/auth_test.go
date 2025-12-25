@@ -235,6 +235,77 @@ func TestAuthHandler_Register_Success(t *testing.T) {
 	}
 }
 
+func TestAuthHandler_Register_HashPasswordError(t *testing.T) {
+	mockAuth := &mockAuthService{
+		HashPasswordFunc: func(password string) (string, error) {
+			return "", errors.New("hash error")
+		},
+	}
+	mockUser := &mockUserService{}
+	handler := NewAuthHandler(mockUser, mockAuth, nil, false)
+
+	body := RegisterRequest{Email: "test@example.com", Password: "SecurePass123", Username: "testuser"}
+	bodyBytes, _ := json.Marshal(body)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/register", bytes.NewBuffer(bodyBytes))
+	rr := httptest.NewRecorder()
+
+	handler.Register(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d", rr.Code)
+	}
+}
+
+func TestAuthHandler_Register_CreateUserError(t *testing.T) {
+	mockUser := &mockUserService{
+		CreateFunc: func(ctx context.Context, params models.CreateUserParams) (*models.User, error) {
+			return nil, errors.New("create error")
+		},
+	}
+	mockAuth := &mockAuthService{}
+	handler := NewAuthHandler(mockUser, mockAuth, nil, false)
+
+	body := RegisterRequest{Email: "test@example.com", Password: "SecurePass123", Username: "testuser"}
+	bodyBytes, _ := json.Marshal(body)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/register", bytes.NewBuffer(bodyBytes))
+	rr := httptest.NewRecorder()
+
+	handler.Register(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d", rr.Code)
+	}
+}
+
+func TestAuthHandler_Register_CreateSessionError(t *testing.T) {
+	user := &models.User{ID: uuid.New(), Email: "test@example.com"}
+	mockUser := &mockUserService{
+		CreateFunc: func(ctx context.Context, params models.CreateUserParams) (*models.User, error) {
+			return user, nil
+		},
+	}
+	mockAuth := &mockAuthService{
+		CreateSessionFunc: func(ctx context.Context, userID uuid.UUID) (string, error) {
+			return "", errors.New("session error")
+		},
+	}
+	handler := NewAuthHandler(mockUser, mockAuth, nil, false)
+
+	body := RegisterRequest{Email: "test@example.com", Password: "SecurePass123", Username: "testuser"}
+	bodyBytes, _ := json.Marshal(body)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/register", bytes.NewBuffer(bodyBytes))
+	rr := httptest.NewRecorder()
+
+	handler.Register(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d", rr.Code)
+	}
+}
+
 func TestAuthHandler_Register_UsernameTooShort(t *testing.T) {
 	handler := NewAuthHandler(nil, nil, nil, false)
 
@@ -421,6 +492,57 @@ func TestAuthHandler_Login_UserNotFound(t *testing.T) {
 	}
 }
 
+func TestAuthHandler_Login_GetByEmailError(t *testing.T) {
+	mockUser := &mockUserService{
+		GetByEmailFunc: func(ctx context.Context, email string) (*models.User, error) {
+			return nil, errors.New("db error")
+		},
+	}
+
+	handler := NewAuthHandler(mockUser, &mockAuthService{}, nil, false)
+
+	body := LoginRequest{Email: "test@example.com", Password: "SecurePass123"}
+	bodyBytes, _ := json.Marshal(body)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewBuffer(bodyBytes))
+	rr := httptest.NewRecorder()
+
+	handler.Login(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d", rr.Code)
+	}
+}
+
+func TestAuthHandler_Login_CreateSessionError(t *testing.T) {
+	password := "SecurePass123"
+	user := &models.User{ID: uuid.New(), Email: "test@example.com", PasswordHash: "hashed_" + password}
+	mockUser := &mockUserService{
+		GetByEmailFunc: func(ctx context.Context, email string) (*models.User, error) {
+			return user, nil
+		},
+	}
+	mockAuth := &mockAuthService{
+		CreateSessionFunc: func(ctx context.Context, userID uuid.UUID) (string, error) {
+			return "", errors.New("session error")
+		},
+	}
+
+	handler := NewAuthHandler(mockUser, mockAuth, nil, false)
+
+	body := LoginRequest{Email: user.Email, Password: password}
+	bodyBytes, _ := json.Marshal(body)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewBuffer(bodyBytes))
+	rr := httptest.NewRecorder()
+
+	handler.Login(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d", rr.Code)
+	}
+}
+
 func TestAuthHandler_Logout_NoCookie(t *testing.T) {
 	handler := NewAuthHandler(nil, nil, nil, false)
 
@@ -541,6 +663,25 @@ func TestAuthHandler_VerifyEmail_MissingToken(t *testing.T) {
 	handler := NewAuthHandler(nil, nil, nil, false)
 
 	body := `{"token": ""}`
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/verify-email", bytes.NewBufferString(body))
+	rr := httptest.NewRecorder()
+
+	handler.VerifyEmail(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", rr.Code)
+	}
+}
+
+func TestAuthHandler_VerifyEmail_Error(t *testing.T) {
+	mockEmail := &mockEmailService{
+		VerifyEmailFunc: func(ctx context.Context, token string) error {
+			return errors.New("invalid token")
+		},
+	}
+	handler := NewAuthHandler(nil, nil, mockEmail, false)
+
+	body := `{"token": "bad"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/verify-email", bytes.NewBufferString(body))
 	rr := httptest.NewRecorder()
 
@@ -698,6 +839,53 @@ func TestAuthHandler_MagicLinkVerify_MissingToken(t *testing.T) {
 	}
 }
 
+func TestAuthHandler_MagicLinkVerify_VerifyError(t *testing.T) {
+	mockEmail := &mockEmailService{
+		VerifyMagicLinkFunc: func(ctx context.Context, token string) (string, error) {
+			return "", errors.New("invalid token")
+		},
+	}
+	handler := NewAuthHandler(&mockUserService{}, &mockAuthService{}, mockEmail, false)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/auth/magic-link/verify?token=bad", nil)
+	rr := httptest.NewRecorder()
+
+	handler.MagicLinkVerify(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", rr.Code)
+	}
+}
+
+func TestAuthHandler_MagicLinkVerify_CreateSessionError(t *testing.T) {
+	user := &models.User{ID: uuid.New(), Email: "test@example.com", EmailVerified: true}
+	mockEmail := &mockEmailService{
+		VerifyMagicLinkFunc: func(ctx context.Context, token string) (string, error) {
+			return user.Email, nil
+		},
+	}
+	mockUser := &mockUserService{
+		GetByEmailFunc: func(ctx context.Context, email string) (*models.User, error) {
+			return user, nil
+		},
+	}
+	mockAuth := &mockAuthService{
+		CreateSessionFunc: func(ctx context.Context, userID uuid.UUID) (string, error) {
+			return "", errors.New("session error")
+		},
+	}
+	handler := NewAuthHandler(mockUser, mockAuth, mockEmail, false)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/auth/magic-link/verify?token=token", nil)
+	rr := httptest.NewRecorder()
+
+	handler.MagicLinkVerify(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d", rr.Code)
+	}
+}
+
 func TestAuthHandler_ForgotPassword_InvalidBody(t *testing.T) {
 	handler := NewAuthHandler(nil, nil, nil, false)
 
@@ -806,6 +994,25 @@ func TestAuthHandler_ResetPassword_WeakPassword(t *testing.T) {
 	}
 }
 
+func TestAuthHandler_ResetPassword_VerifyTokenError(t *testing.T) {
+	mockEmail := &mockEmailService{
+		VerifyPasswordResetTokenFunc: func(ctx context.Context, token string) (uuid.UUID, error) {
+			return uuid.Nil, errors.New("bad token")
+		},
+	}
+	handler := NewAuthHandler(&mockUserService{}, &mockAuthService{}, mockEmail, false)
+
+	body := `{"token": "bad-token", "password": "SecurePass123"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/reset-password", bytes.NewBufferString(body))
+	rr := httptest.NewRecorder()
+
+	handler.ResetPassword(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400, got %d", rr.Code)
+	}
+}
+
 func TestAuthHandler_UpdateSearchable_Unauthenticated(t *testing.T) {
 	handler := NewAuthHandler(nil, nil, nil, false)
 
@@ -837,6 +1044,53 @@ func TestAuthHandler_UpdateSearchable_InvalidBody(t *testing.T) {
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected status 400, got %d", rr.Code)
+	}
+}
+
+func TestAuthHandler_UpdateSearchable_UpdateError(t *testing.T) {
+	user := &models.User{ID: uuid.New()}
+	mockUser := &mockUserService{
+		UpdateSearchableFunc: func(ctx context.Context, userID uuid.UUID, searchable bool) error {
+			return errors.New("update error")
+		},
+	}
+	handler := NewAuthHandler(mockUser, &mockAuthService{}, &mockEmailService{}, false)
+
+	body := `{"searchable": true}`
+	req := httptest.NewRequest(http.MethodPut, "/api/auth/searchable", bytes.NewBufferString(body))
+	ctx := SetUserInContext(req.Context(), user)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	handler.UpdateSearchable(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected status 500, got %d", rr.Code)
+	}
+}
+
+func TestAuthHandler_UpdateSearchable_GetByIDError(t *testing.T) {
+	user := &models.User{ID: uuid.New()}
+	mockUser := &mockUserService{
+		UpdateSearchableFunc: func(ctx context.Context, userID uuid.UUID, searchable bool) error {
+			return nil
+		},
+		GetByIDFunc: func(ctx context.Context, id uuid.UUID) (*models.User, error) {
+			return nil, errors.New("get error")
+		},
+	}
+	handler := NewAuthHandler(mockUser, &mockAuthService{}, &mockEmailService{}, false)
+
+	body := `{"searchable": true}`
+	req := httptest.NewRequest(http.MethodPut, "/api/auth/searchable", bytes.NewBufferString(body))
+	ctx := SetUserInContext(req.Context(), user)
+	req = req.WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	handler.UpdateSearchable(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected status 500, got %d", rr.Code)
 	}
 }
 

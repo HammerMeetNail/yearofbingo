@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -188,6 +189,69 @@ func TestGenerate(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
+			name: "Invalid Input - Difficulty",
+			requestBody: map[string]any{
+				"category":   "hobbies",
+				"difficulty": "expert",
+				"budget":     "low",
+			},
+			user: &models.User{ID: uuid.New(), EmailVerified: true},
+			mockSetup: func() *MockAIService {
+				return &MockAIService{}
+			},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name: "Invalid Input - Budget",
+			requestBody: map[string]any{
+				"category":   "hobbies",
+				"difficulty": "medium",
+				"budget":     "ultra",
+			},
+			user: &models.User{ID: uuid.New(), EmailVerified: true},
+			mockSetup: func() *MockAIService {
+				return &MockAIService{}
+			},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name: "Invalid Input - Focus Too Long",
+			requestBody: map[string]any{
+				"category":   "hobbies",
+				"focus":      strings.Repeat("a", 101),
+				"difficulty": "medium",
+				"budget":     "low",
+			},
+			user: &models.User{ID: uuid.New(), EmailVerified: true},
+			mockSetup: func() *MockAIService {
+				return &MockAIService{}
+			},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name: "Invalid Input - Context Too Long",
+			requestBody: map[string]any{
+				"category":   "hobbies",
+				"context":    strings.Repeat("a", 501),
+				"difficulty": "medium",
+				"budget":     "low",
+			},
+			user: &models.User{ID: uuid.New(), EmailVerified: true},
+			mockSetup: func() *MockAIService {
+				return &MockAIService{}
+			},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:        "Invalid Input - Unknown Field",
+			requestBody: `{"category":"hobbies","difficulty":"medium","budget":"low","unknown":true}`,
+			user:        &models.User{ID: uuid.New(), EmailVerified: true},
+			mockSetup: func() *MockAIService {
+				return &MockAIService{}
+			},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
 			name:        "Service Error - Safety",
 			requestBody: validBody,
 			user:        &models.User{ID: uuid.New(), EmailVerified: true},
@@ -252,6 +316,40 @@ func TestGenerate(t *testing.T) {
 			},
 			expectedStatus: http.StatusInternalServerError,
 		},
+		{
+			name:        "Unverified Usage Tracking Unavailable",
+			requestBody: validBody,
+			user:        &models.User{ID: uuid.New(), EmailVerified: false},
+			mockSetup: func() *MockAIService {
+				return &MockAIService{
+					ConsumeFunc: func(ctx context.Context, userID uuid.UUID) (int, error) {
+						return 0, ai.ErrAIUsageTrackingUnavailable
+					},
+					GenerateGoalsFunc: func(ctx context.Context, userID uuid.UUID, prompt ai.GoalPrompt) ([]string, ai.UsageStats, error) {
+						t.Fatal("GenerateGoals should not be called when tracking is unavailable")
+						return nil, ai.UsageStats{}, nil
+					},
+				}
+			},
+			expectedStatus: http.StatusServiceUnavailable,
+		},
+		{
+			name:        "Unverified Usage Tracking Generic Error",
+			requestBody: validBody,
+			user:        &models.User{ID: uuid.New(), EmailVerified: false},
+			mockSetup: func() *MockAIService {
+				return &MockAIService{
+					ConsumeFunc: func(ctx context.Context, userID uuid.UUID) (int, error) {
+						return 0, errors.New("boom")
+					},
+					GenerateGoalsFunc: func(ctx context.Context, userID uuid.UUID, prompt ai.GoalPrompt) ([]string, ai.UsageStats, error) {
+						t.Fatal("GenerateGoals should not be called when tracking fails")
+						return nil, ai.UsageStats{}, nil
+					},
+				}
+			},
+			expectedStatus: http.StatusServiceUnavailable,
+		},
 	}
 
 	for _, tt := range tests {
@@ -259,8 +357,14 @@ func TestGenerate(t *testing.T) {
 			mockService := tt.mockSetup()
 			handler := NewAIHandler(mockService)
 
-			body, _ := json.Marshal(tt.requestBody)
-			req := httptest.NewRequest("POST", "/api/ai/generate", bytes.NewBuffer(body))
+			var bodyBytes []byte
+			switch v := tt.requestBody.(type) {
+			case string:
+				bodyBytes = []byte(v)
+			default:
+				bodyBytes, _ = json.Marshal(v)
+			}
+			req := httptest.NewRequest("POST", "/api/ai/generate", bytes.NewBuffer(bodyBytes))
 
 			// Mock context with user if provided
 			if tt.user != nil {

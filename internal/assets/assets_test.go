@@ -51,3 +51,21 @@ func TestManifestLoadMissingFile(t *testing.T) {
 		t.Fatalf("expected fallback path for api.js, got %s", got)
 	}
 }
+
+func TestManifestLoadInvalidJSON(t *testing.T) {
+	dir := t.TempDir()
+	manifestDir := filepath.Join(dir, "web", "static", "dist")
+	if err := os.MkdirAll(manifestDir, 0o755); err != nil {
+		t.Fatalf("failed to create manifest dir: %v", err)
+	}
+
+	manifestPath := filepath.Join(manifestDir, "manifest.json")
+	if err := os.WriteFile(manifestPath, []byte("{not-json"), 0o644); err != nil {
+		t.Fatalf("failed to write manifest: %v", err)
+	}
+
+	m := NewManifest(dir)
+	if err := m.Load(); err == nil {
+		t.Fatal("expected invalid JSON error")
+	}
+}

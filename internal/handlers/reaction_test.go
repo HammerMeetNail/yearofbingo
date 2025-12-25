@@ -210,6 +210,82 @@ func TestReactionHandler_AddReaction_SuccessAndErrors(t *testing.T) {
 		}
 	})
 
+	t.Run("item not found", func(t *testing.T) {
+		mockSvc := &mockReactionService{
+			AddReactionFunc: func(ctx context.Context, userID, gotItemID uuid.UUID, emoji string) (*models.Reaction, error) {
+				return nil, services.ErrItemNotFound
+			},
+		}
+		handler := NewReactionHandler(mockSvc)
+
+		bodyBytes, _ := json.Marshal(AddReactionRequest{Emoji: "🎉"})
+		req := httptest.NewRequest(http.MethodPost, "/api/items/"+itemID.String()+"/react", bytes.NewBuffer(bodyBytes))
+		req = req.WithContext(SetUserInContext(req.Context(), user))
+		rr := httptest.NewRecorder()
+
+		handler.AddReaction(rr, req)
+		if rr.Code != http.StatusNotFound {
+			t.Fatalf("expected status 404, got %d", rr.Code)
+		}
+	})
+
+	t.Run("cannot react to own", func(t *testing.T) {
+		mockSvc := &mockReactionService{
+			AddReactionFunc: func(ctx context.Context, userID, gotItemID uuid.UUID, emoji string) (*models.Reaction, error) {
+				return nil, services.ErrCannotReactToOwn
+			},
+		}
+		handler := NewReactionHandler(mockSvc)
+
+		bodyBytes, _ := json.Marshal(AddReactionRequest{Emoji: "🎉"})
+		req := httptest.NewRequest(http.MethodPost, "/api/items/"+itemID.String()+"/react", bytes.NewBuffer(bodyBytes))
+		req = req.WithContext(SetUserInContext(req.Context(), user))
+		rr := httptest.NewRecorder()
+
+		handler.AddReaction(rr, req)
+		if rr.Code != http.StatusBadRequest {
+			t.Fatalf("expected status 400, got %d", rr.Code)
+		}
+	})
+
+	t.Run("item not completed", func(t *testing.T) {
+		mockSvc := &mockReactionService{
+			AddReactionFunc: func(ctx context.Context, userID, gotItemID uuid.UUID, emoji string) (*models.Reaction, error) {
+				return nil, services.ErrItemNotCompleted
+			},
+		}
+		handler := NewReactionHandler(mockSvc)
+
+		bodyBytes, _ := json.Marshal(AddReactionRequest{Emoji: "🎉"})
+		req := httptest.NewRequest(http.MethodPost, "/api/items/"+itemID.String()+"/react", bytes.NewBuffer(bodyBytes))
+		req = req.WithContext(SetUserInContext(req.Context(), user))
+		rr := httptest.NewRecorder()
+
+		handler.AddReaction(rr, req)
+		if rr.Code != http.StatusBadRequest {
+			t.Fatalf("expected status 400, got %d", rr.Code)
+		}
+	})
+
+	t.Run("not friend", func(t *testing.T) {
+		mockSvc := &mockReactionService{
+			AddReactionFunc: func(ctx context.Context, userID, gotItemID uuid.UUID, emoji string) (*models.Reaction, error) {
+				return nil, services.ErrNotFriend
+			},
+		}
+		handler := NewReactionHandler(mockSvc)
+
+		bodyBytes, _ := json.Marshal(AddReactionRequest{Emoji: "🎉"})
+		req := httptest.NewRequest(http.MethodPost, "/api/items/"+itemID.String()+"/react", bytes.NewBuffer(bodyBytes))
+		req = req.WithContext(SetUserInContext(req.Context(), user))
+		rr := httptest.NewRecorder()
+
+		handler.AddReaction(rr, req)
+		if rr.Code != http.StatusForbidden {
+			t.Fatalf("expected status 403, got %d", rr.Code)
+		}
+	})
+
 	t.Run("internal error", func(t *testing.T) {
 		mockSvc := &mockReactionService{
 			AddReactionFunc: func(ctx context.Context, userID, gotItemID uuid.UUID, emoji string) (*models.Reaction, error) {
@@ -261,6 +337,24 @@ func TestReactionHandler_GetReactions_SuccessAndError(t *testing.T) {
 				return []models.ReactionWithUser{}, nil
 			},
 			GetReactionSummaryForItemFunc: func(ctx context.Context, gotItemID uuid.UUID) ([]models.ReactionSummary, error) {
+				return nil, errors.New("boom")
+			},
+		}
+		handler := NewReactionHandler(mockSvc)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/items/"+itemID.String()+"/reactions", nil)
+		req = req.WithContext(SetUserInContext(req.Context(), user))
+		rr := httptest.NewRecorder()
+
+		handler.GetReactions(rr, req)
+		if rr.Code != http.StatusInternalServerError {
+			t.Fatalf("expected status 500, got %d", rr.Code)
+		}
+	})
+
+	t.Run("reactions error", func(t *testing.T) {
+		mockSvc := &mockReactionService{
+			GetReactionsForItemFunc: func(ctx context.Context, gotItemID uuid.UUID) ([]models.ReactionWithUser, error) {
 				return nil, errors.New("boom")
 			},
 		}

@@ -121,6 +121,27 @@ func TestApiTokenHandler_Create_Success(t *testing.T) {
 	}
 }
 
+func TestApiTokenHandler_Create_Error(t *testing.T) {
+	user := &models.User{ID: uuid.New()}
+	mockSvc := &mockApiTokenService{
+		CreateFunc: func(ctx context.Context, userID uuid.UUID, name string, scope models.ApiTokenScope, expiresInDays int) (*models.ApiToken, string, error) {
+			return nil, "", errors.New("create error")
+		},
+	}
+	handler := NewApiTokenHandler(mockSvc)
+
+	bodyBytes, _ := json.Marshal(CreateApiTokenRequest{Name: "My Token", Scope: models.ScopeRead, ExpiresInDays: 7})
+	req := httptest.NewRequest(http.MethodPost, "/api/tokens", bytes.NewBuffer(bodyBytes))
+	req = req.WithContext(SetUserInContext(req.Context(), user))
+	rr := httptest.NewRecorder()
+
+	handler.Create(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d", rr.Code)
+	}
+}
+
 func TestApiTokenHandler_List_Success(t *testing.T) {
 	user := &models.User{ID: uuid.New()}
 	mockSvc := &mockApiTokenService{
@@ -149,6 +170,19 @@ func TestApiTokenHandler_List_Success(t *testing.T) {
 	}
 	if len(resp.Tokens) != 1 {
 		t.Fatalf("expected 1 token, got %d", len(resp.Tokens))
+	}
+}
+
+func TestApiTokenHandler_List_Unauthenticated(t *testing.T) {
+	handler := NewApiTokenHandler(&mockApiTokenService{})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/tokens", nil)
+	rr := httptest.NewRecorder()
+
+	handler.List(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status 401, got %d", rr.Code)
 	}
 }
 
@@ -273,6 +307,39 @@ func TestApiTokenHandler_Delete_Success(t *testing.T) {
 	}
 }
 
+func TestApiTokenHandler_Delete_Error(t *testing.T) {
+	user := &models.User{ID: uuid.New()}
+	mockSvc := &mockApiTokenService{
+		DeleteFunc: func(ctx context.Context, userID uuid.UUID, tokenID uuid.UUID) error {
+			return errors.New("delete error")
+		},
+	}
+	handler := NewApiTokenHandler(mockSvc)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/tokens/"+uuid.New().String(), nil)
+	req = req.WithContext(SetUserInContext(req.Context(), user))
+	rr := httptest.NewRecorder()
+
+	handler.Delete(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d", rr.Code)
+	}
+}
+
+func TestApiTokenHandler_Delete_Unauthenticated(t *testing.T) {
+	handler := NewApiTokenHandler(&mockApiTokenService{})
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/tokens/"+uuid.New().String(), nil)
+	rr := httptest.NewRecorder()
+
+	handler.Delete(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status 401, got %d", rr.Code)
+	}
+}
+
 func TestApiTokenHandler_DeleteAll_Error(t *testing.T) {
 	user := &models.User{ID: uuid.New()}
 	mockSvc := &mockApiTokenService{
@@ -308,5 +375,18 @@ func TestApiTokenHandler_DeleteAll_Success(t *testing.T) {
 	handler.DeleteAll(rr, req)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+}
+
+func TestApiTokenHandler_DeleteAll_Unauthenticated(t *testing.T) {
+	handler := NewApiTokenHandler(&mockApiTokenService{})
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/tokens", nil)
+	rr := httptest.NewRecorder()
+
+	handler.DeleteAll(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status 401, got %d", rr.Code)
 	}
 }

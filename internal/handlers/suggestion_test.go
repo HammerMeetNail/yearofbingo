@@ -71,6 +71,24 @@ func TestSuggestionHandler_GetAll_ByCategory(t *testing.T) {
 	}
 }
 
+func TestSuggestionHandler_GetAll_ByCategoryError(t *testing.T) {
+	mockSvc := &mockSuggestionService{
+		GetByCategoryFunc: func(ctx context.Context, category string) ([]*models.Suggestion, error) {
+			return nil, errors.New("boom")
+		},
+	}
+	handler := NewSuggestionHandler(mockSvc)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/suggestions?category=Health", nil)
+	rr := httptest.NewRecorder()
+
+	handler.GetAll(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d", rr.Code)
+	}
+}
+
 func TestSuggestionHandler_GetAll_All(t *testing.T) {
 	mockSvc := &mockSuggestionService{
 		GetAllFunc: func(ctx context.Context) ([]*models.Suggestion, error) {
@@ -86,6 +104,24 @@ func TestSuggestionHandler_GetAll_All(t *testing.T) {
 
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d", rr.Code)
+	}
+}
+
+func TestSuggestionHandler_GetAll_GroupedError(t *testing.T) {
+	mockSvc := &mockSuggestionService{
+		GetGroupedByCategoryFunc: func(ctx context.Context) ([]services.SuggestionsByCategory, error) {
+			return nil, errors.New("boom")
+		},
+	}
+	handler := NewSuggestionHandler(mockSvc)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/suggestions?grouped=true", nil)
+	rr := httptest.NewRecorder()
+
+	handler.GetAll(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d", rr.Code)
 	}
 }
 

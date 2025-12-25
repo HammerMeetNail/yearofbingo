@@ -29,6 +29,34 @@ func TestSuggestionService_GetAll(t *testing.T) {
 	}
 }
 
+func TestSuggestionService_GetAll_QueryError(t *testing.T) {
+	db := &fakeDB{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			return nil, context.Canceled
+		},
+	}
+
+	svc := NewSuggestionService(db)
+	_, err := svc.GetAll(context.Background())
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestSuggestionService_GetAll_ScanError(t *testing.T) {
+	db := &fakeDB{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			return &fakeRows{rows: [][]any{{"bad-id"}}}, nil
+		},
+	}
+
+	svc := NewSuggestionService(db)
+	_, err := svc.GetAll(context.Background())
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 func TestSuggestionService_GetGroupedByCategory(t *testing.T) {
 	db := &fakeDB{
 		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
@@ -75,6 +103,34 @@ func TestSuggestionService_GetByCategory(t *testing.T) {
 	}
 }
 
+func TestSuggestionService_GetByCategory_QueryError(t *testing.T) {
+	db := &fakeDB{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			return nil, context.Canceled
+		},
+	}
+
+	svc := NewSuggestionService(db)
+	_, err := svc.GetByCategory(context.Background(), "health")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestSuggestionService_GetByCategory_ScanError(t *testing.T) {
+	db := &fakeDB{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			return &fakeRows{rows: [][]any{{"bad-id"}}}, nil
+		},
+	}
+
+	svc := NewSuggestionService(db)
+	_, err := svc.GetByCategory(context.Background(), "health")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 func TestSuggestionService_GetCategories(t *testing.T) {
 	db := &fakeDB{
 		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
@@ -92,6 +148,34 @@ func TestSuggestionService_GetCategories(t *testing.T) {
 	}
 	if len(categories) != 2 {
 		t.Fatalf("expected 2 categories, got %d", len(categories))
+	}
+}
+
+func TestSuggestionService_GetCategories_QueryError(t *testing.T) {
+	db := &fakeDB{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			return nil, context.Canceled
+		},
+	}
+
+	svc := NewSuggestionService(db)
+	_, err := svc.GetCategories(context.Background())
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestSuggestionService_GetCategories_ScanError(t *testing.T) {
+	db := &fakeDB{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			return &fakeRows{rows: [][]any{{struct{}{}}}}, nil
+		},
+	}
+
+	svc := NewSuggestionService(db)
+	_, err := svc.GetCategories(context.Background())
+	if err == nil {
+		t.Fatal("expected error")
 	}
 }
 

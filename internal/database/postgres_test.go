@@ -53,6 +53,27 @@ func TestNewPostgresDB_PingError(t *testing.T) {
 	}
 }
 
+func TestNewPostgresDB_NewPoolError(t *testing.T) {
+	origParse := parsePGConfig
+	origNew := newPGPool
+	t.Cleanup(func() {
+		parsePGConfig = origParse
+		newPGPool = origNew
+	})
+
+	parsePGConfig = func(dsn string) (*pgxpool.Config, error) {
+		return &pgxpool.Config{}, nil
+	}
+	newPGPool = func(ctx context.Context, config *pgxpool.Config) (*pgxpool.Pool, error) {
+		return nil, errors.New("new pool error")
+	}
+
+	_, err := NewPostgresDB("dsn")
+	if err == nil || err.Error() == "" {
+		t.Fatal("expected new pool error")
+	}
+}
+
 func TestNewPostgresDB_SuccessConfigValues(t *testing.T) {
 	origParse := parsePGConfig
 	origNew := newPGPool
@@ -100,4 +121,26 @@ func TestNewPostgresDB_SuccessConfigValues(t *testing.T) {
 	if cfg.HealthCheckPeriod != time.Minute {
 		t.Fatalf("expected HealthCheckPeriod 1m, got %v", cfg.HealthCheckPeriod)
 	}
+}
+
+func TestPostgresDB_Close_CallsPoolClose(t *testing.T) {
+	origClose := closePGPool
+	t.Cleanup(func() { closePGPool = origClose })
+
+	called := false
+	closePGPool = func(pool *pgxpool.Pool) {
+		called = true
+	}
+
+	db := &PostgresDB{Pool: &pgxpool.Pool{}}
+	db.Close()
+
+	if !called {
+		t.Fatal("expected closePGPool to be called")
+	}
+}
+
+func TestPostgresDB_Close_NilPool(t *testing.T) {
+	db := &PostgresDB{}
+	db.Close()
 }

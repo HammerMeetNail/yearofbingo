@@ -48,6 +48,34 @@ func TestFriendService_SearchUsers_ReturnsRows(t *testing.T) {
 	}
 }
 
+func TestFriendService_SearchUsers_QueryError(t *testing.T) {
+	db := &fakeDB{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			return nil, errors.New("boom")
+		},
+	}
+
+	svc := NewFriendService(db)
+	_, err := svc.SearchUsers(context.Background(), uuid.New(), "al")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestFriendService_SearchUsers_ScanError(t *testing.T) {
+	db := &fakeDB{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			return &fakeRows{rows: [][]any{{"bad-id"}}}, nil
+		},
+	}
+
+	svc := NewFriendService(db)
+	_, err := svc.SearchUsers(context.Background(), uuid.New(), "al")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 func TestFriendService_SendRequest_Self(t *testing.T) {
 	svc := &FriendService{}
 	userID := uuid.New()
@@ -76,6 +104,22 @@ func TestFriendService_SendRequest_AlreadyExists(t *testing.T) {
 	}
 }
 
+func TestFriendService_SendRequest_ExistenceError(t *testing.T) {
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			return fakeRow{scanFunc: func(dest ...any) error {
+				return errors.New("boom")
+			}}
+		},
+	}
+
+	svc := NewFriendService(db)
+	_, err := svc.SendRequest(context.Background(), uuid.New(), uuid.New())
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 func TestFriendService_SendRequest_Success(t *testing.T) {
 	userID := uuid.New()
 	friendID := uuid.New()
@@ -98,6 +142,29 @@ func TestFriendService_SendRequest_Success(t *testing.T) {
 	}
 	if friendship.ID != friendshipID {
 		t.Fatalf("expected friendship %v, got %v", friendshipID, friendship.ID)
+	}
+}
+
+func TestFriendService_SendRequest_InsertError(t *testing.T) {
+	userID := uuid.New()
+	friendID := uuid.New()
+	call := 0
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			call++
+			if call == 1 {
+				return rowFromValues(false)
+			}
+			return fakeRow{scanFunc: func(dest ...any) error {
+				return errors.New("boom")
+			}}
+		},
+	}
+
+	svc := NewFriendService(db)
+	_, err := svc.SendRequest(context.Background(), userID, friendID)
+	if err == nil {
+		t.Fatal("expected error")
 	}
 }
 
@@ -136,6 +203,25 @@ func TestFriendService_AcceptRequest_Success(t *testing.T) {
 	}
 	if friendship.Status != models.FriendshipStatusAccepted {
 		t.Fatalf("expected accepted status, got %s", friendship.Status)
+	}
+}
+
+func TestFriendService_AcceptRequest_ExecError(t *testing.T) {
+	friendshipID := uuid.New()
+	userID := uuid.New()
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			return rowFromValues(friendshipRowValues(friendshipID, uuid.New(), userID, models.FriendshipStatusPending)...)
+		},
+		ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+			return fakeCommandTag{}, errors.New("boom")
+		},
+	}
+
+	svc := NewFriendService(db)
+	_, err := svc.AcceptRequest(context.Background(), userID, friendshipID)
+	if err == nil {
+		t.Fatal("expected error")
 	}
 }
 
@@ -193,6 +279,25 @@ func TestFriendService_CancelRequest_Success(t *testing.T) {
 	}
 }
 
+func TestFriendService_CancelRequest_ExecError(t *testing.T) {
+	friendshipID := uuid.New()
+	userID := uuid.New()
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			return rowFromValues(friendshipRowValues(friendshipID, userID, uuid.New(), models.FriendshipStatusPending)...)
+		},
+		ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+			return fakeCommandTag{}, errors.New("boom")
+		},
+	}
+
+	svc := NewFriendService(db)
+	err := svc.CancelRequest(context.Background(), userID, friendshipID)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 func TestFriendService_CancelRequest_NotPending(t *testing.T) {
 	friendshipID := uuid.New()
 	userID := uuid.New()
@@ -240,6 +345,25 @@ func TestFriendService_RejectRequest_Success(t *testing.T) {
 	svc := NewFriendService(db)
 	if err := svc.RejectRequest(context.Background(), userID, friendshipID); err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestFriendService_RejectRequest_ExecError(t *testing.T) {
+	friendshipID := uuid.New()
+	userID := uuid.New()
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			return rowFromValues(friendshipRowValues(friendshipID, uuid.New(), userID, models.FriendshipStatusPending)...)
+		},
+		ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+			return fakeCommandTag{}, errors.New("boom")
+		},
+	}
+
+	svc := NewFriendService(db)
+	err := svc.RejectRequest(context.Background(), userID, friendshipID)
+	if err == nil {
+		t.Fatal("expected error")
 	}
 }
 
@@ -417,6 +541,34 @@ func TestFriendService_ListFriends_ReturnsRows(t *testing.T) {
 	}
 }
 
+func TestFriendService_ListFriends_QueryError(t *testing.T) {
+	db := &fakeDB{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			return nil, errors.New("boom")
+		},
+	}
+
+	svc := NewFriendService(db)
+	_, err := svc.ListFriends(context.Background(), uuid.New())
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestFriendService_ListFriends_ScanError(t *testing.T) {
+	db := &fakeDB{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			return &fakeRows{rows: [][]any{{"bad-id"}}}, nil
+		},
+	}
+
+	svc := NewFriendService(db)
+	_, err := svc.ListFriends(context.Background(), uuid.New())
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 func TestFriendService_ListPendingRequests_Empty(t *testing.T) {
 	db := &fakeDB{
 		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
@@ -456,6 +608,34 @@ func TestFriendService_ListPendingRequests_ReturnsRows(t *testing.T) {
 	}
 }
 
+func TestFriendService_ListPendingRequests_QueryError(t *testing.T) {
+	db := &fakeDB{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			return nil, errors.New("boom")
+		},
+	}
+
+	svc := NewFriendService(db)
+	_, err := svc.ListPendingRequests(context.Background(), uuid.New())
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestFriendService_ListPendingRequests_ScanError(t *testing.T) {
+	db := &fakeDB{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			return &fakeRows{rows: [][]any{{"bad-id"}}}, nil
+		},
+	}
+
+	svc := NewFriendService(db)
+	_, err := svc.ListPendingRequests(context.Background(), uuid.New())
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 func TestFriendService_ListSentRequests_Empty(t *testing.T) {
 	db := &fakeDB{
 		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
@@ -492,6 +672,34 @@ func TestFriendService_ListSentRequests_ReturnsRows(t *testing.T) {
 	}
 	if len(requests) != 1 {
 		t.Fatalf("expected 1 request, got %d", len(requests))
+	}
+}
+
+func TestFriendService_ListSentRequests_QueryError(t *testing.T) {
+	db := &fakeDB{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			return nil, errors.New("boom")
+		},
+	}
+
+	svc := NewFriendService(db)
+	_, err := svc.ListSentRequests(context.Background(), uuid.New())
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestFriendService_ListSentRequests_ScanError(t *testing.T) {
+	db := &fakeDB{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			return &fakeRows{rows: [][]any{{"bad-id"}}}, nil
+		},
+	}
+
+	svc := NewFriendService(db)
+	_, err := svc.ListSentRequests(context.Background(), uuid.New())
+	if err == nil {
+		t.Fatal("expected error")
 	}
 }
 

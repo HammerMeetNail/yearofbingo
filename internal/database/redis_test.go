@@ -93,8 +93,28 @@ func TestRedisDB_HealthError(t *testing.T) {
 	}
 }
 
+func TestRedisDB_HealthSuccess(t *testing.T) {
+	origPing := redisPing
+	t.Cleanup(func() { redisPing = origPing })
+	redisPing = func(ctx context.Context, client *redis.Client) error {
+		return nil
+	}
+
+	db := &RedisDB{Client: &redis.Client{}}
+	if err := db.Health(context.Background()); err != nil {
+		t.Fatalf("unexpected health error: %v", err)
+	}
+}
+
 func TestRedisDB_CloseNil(t *testing.T) {
 	db := &RedisDB{}
+	if err := db.Close(); err != nil {
+		t.Fatalf("unexpected close error: %v", err)
+	}
+}
+
+func TestRedisDB_Close_Client(t *testing.T) {
+	db := &RedisDB{Client: redis.NewClient(&redis.Options{Addr: "localhost:0"})}
 	if err := db.Close(); err != nil {
 		t.Fatalf("unexpected close error: %v", err)
 	}

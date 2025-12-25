@@ -31,6 +31,27 @@ func TestUserService_Create_EmailExists(t *testing.T) {
 	}
 }
 
+func TestUserService_Create_EmailCheckError(t *testing.T) {
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			return fakeRow{scanFunc: func(dest ...any) error {
+				return errors.New("boom")
+			}}
+		},
+	}
+
+	service := NewUserService(db)
+	_, err := service.Create(context.Background(), models.CreateUserParams{
+		Email:        "test@example.com",
+		PasswordHash: "hash",
+		Username:     "user",
+		Searchable:   true,
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 func TestUserService_Create_UsernameExists(t *testing.T) {
 	call := 0
 	db := &fakeDB{
@@ -59,6 +80,62 @@ func TestUserService_Create_UsernameExists(t *testing.T) {
 	}
 }
 
+func TestUserService_Create_UsernameCheckError(t *testing.T) {
+	call := 0
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			call++
+			if call == 1 {
+				return rowFromValues(false)
+			}
+			return fakeRow{scanFunc: func(dest ...any) error {
+				return errors.New("boom")
+			}}
+		},
+	}
+
+	service := NewUserService(db)
+	_, err := service.Create(context.Background(), models.CreateUserParams{
+		Email:        "test@example.com",
+		PasswordHash: "hash",
+		Username:     "user",
+		Searchable:   true,
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestUserService_Create_InsertError(t *testing.T) {
+	call := 0
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			call++
+			switch call {
+			case 1:
+				return rowFromValues(false)
+			case 2:
+				return rowFromValues(false)
+			default:
+				return fakeRow{scanFunc: func(dest ...any) error {
+					return errors.New("boom")
+				}}
+			}
+		},
+	}
+
+	service := NewUserService(db)
+	_, err := service.Create(context.Background(), models.CreateUserParams{
+		Email:        "test@example.com",
+		PasswordHash: "hash",
+		Username:     "user",
+		Searchable:   true,
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 func TestUserService_GetByID_NotFound(t *testing.T) {
 	db := &fakeDB{
 		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
@@ -75,6 +152,22 @@ func TestUserService_GetByID_NotFound(t *testing.T) {
 	}
 }
 
+func TestUserService_GetByID_QueryError(t *testing.T) {
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			return fakeRow{scanFunc: func(dest ...any) error {
+				return errors.New("boom")
+			}}
+		},
+	}
+
+	service := NewUserService(db)
+	_, err := service.GetByID(context.Background(), uuid.New())
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 func TestUserService_UpdatePassword_NotFound(t *testing.T) {
 	db := &fakeDB{
 		ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
@@ -86,6 +179,20 @@ func TestUserService_UpdatePassword_NotFound(t *testing.T) {
 	err := service.UpdatePassword(context.Background(), uuid.New(), "hash")
 	if !errors.Is(err, ErrUserNotFound) {
 		t.Fatalf("expected ErrUserNotFound, got %v", err)
+	}
+}
+
+func TestUserService_UpdatePassword_ExecError(t *testing.T) {
+	db := &fakeDB{
+		ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+			return fakeCommandTag{}, errors.New("boom")
+		},
+	}
+
+	service := NewUserService(db)
+	err := service.UpdatePassword(context.Background(), uuid.New(), "hash")
+	if err == nil {
+		t.Fatal("expected error")
 	}
 }
 
@@ -105,6 +212,22 @@ func TestUserService_GetByEmail_NotFound(t *testing.T) {
 	}
 }
 
+func TestUserService_GetByEmail_QueryError(t *testing.T) {
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			return fakeRow{scanFunc: func(dest ...any) error {
+				return errors.New("boom")
+			}}
+		},
+	}
+
+	service := NewUserService(db)
+	_, err := service.GetByEmail(context.Background(), "test@example.com")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 func TestUserService_UpdateSearchable_NotFound(t *testing.T) {
 	db := &fakeDB{
 		ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
@@ -116,6 +239,20 @@ func TestUserService_UpdateSearchable_NotFound(t *testing.T) {
 	err := service.UpdateSearchable(context.Background(), uuid.New(), true)
 	if !errors.Is(err, ErrUserNotFound) {
 		t.Fatalf("expected ErrUserNotFound, got %v", err)
+	}
+}
+
+func TestUserService_UpdateSearchable_ExecError(t *testing.T) {
+	db := &fakeDB{
+		ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+			return fakeCommandTag{}, errors.New("boom")
+		},
+	}
+
+	service := NewUserService(db)
+	err := service.UpdateSearchable(context.Background(), uuid.New(), true)
+	if err == nil {
+		t.Fatal("expected error")
 	}
 }
 
