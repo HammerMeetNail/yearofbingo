@@ -292,3 +292,21 @@ func TestApiTokenHandler_DeleteAll_Error(t *testing.T) {
 		t.Fatalf("expected status 500, got %d", rr.Code)
 	}
 }
+
+func TestApiTokenHandler_DeleteAll_Success(t *testing.T) {
+	service := &mockApiTokenService{
+		DeleteAllFunc: func(ctx context.Context, userID uuid.UUID) error {
+			return nil
+		},
+	}
+	handler := NewApiTokenHandler(service)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/tokens", nil)
+	req = req.WithContext(SetUserInContext(req.Context(), &models.User{ID: uuid.New()}))
+	rr := httptest.NewRecorder()
+
+	handler.DeleteAll(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+}

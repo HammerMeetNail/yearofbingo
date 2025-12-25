@@ -3,7 +3,9 @@ package services
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -112,6 +114,29 @@ func TestReactionService_AddReaction_NotFriend(t *testing.T) {
 	}
 }
 
+func TestReactionService_AddReaction_Success(t *testing.T) {
+	userID := uuid.New()
+	itemID := uuid.New()
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			if strings.Contains(sql, "FROM bingo_items") {
+				return rowFromValues(uuid.New(), true)
+			}
+			return rowFromValues(uuid.New(), itemID, userID, "🎉", time.Now())
+		},
+	}
+	friend := &fakeFriendChecker{isFriend: true}
+
+	service := NewReactionService(db, friend)
+	reaction, err := service.AddReaction(context.Background(), userID, itemID, "🎉")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if reaction.ItemID != itemID {
+		t.Fatalf("expected item %v, got %v", itemID, reaction.ItemID)
+	}
+}
+
 func TestReactionService_RemoveReaction_NotFound(t *testing.T) {
 	db := &fakeDB{
 		ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
@@ -123,6 +148,19 @@ func TestReactionService_RemoveReaction_NotFound(t *testing.T) {
 	err := service.RemoveReaction(context.Background(), uuid.New(), uuid.New())
 	if !errors.Is(err, ErrReactionNotFound) {
 		t.Fatalf("expected ErrReactionNotFound, got %v", err)
+	}
+}
+
+func TestReactionService_RemoveReaction_Success(t *testing.T) {
+	db := &fakeDB{
+		ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+			return fakeCommandTag{rowsAffected: 1}, nil
+		},
+	}
+
+	service := NewReactionService(db, &fakeFriendChecker{})
+	if err := service.RemoveReaction(context.Background(), uuid.New(), uuid.New()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
@@ -145,6 +183,25 @@ func TestReactionService_GetUserReactionForItem_NotFound(t *testing.T) {
 	}
 }
 
+func TestReactionService_GetUserReactionForItem_Success(t *testing.T) {
+	userID := uuid.New()
+	itemID := uuid.New()
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			return rowFromValues(uuid.New(), itemID, userID, "🎉", time.Now())
+		},
+	}
+
+	service := NewReactionService(db, &fakeFriendChecker{})
+	reaction, err := service.GetUserReactionForItem(context.Background(), userID, itemID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if reaction == nil || reaction.ItemID != itemID {
+		t.Fatalf("expected reaction for %v", itemID)
+	}
+}
+
 func TestReactionService_GetReactionsForItem_Empty(t *testing.T) {
 	db := &fakeDB{
 		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
@@ -159,6 +216,26 @@ func TestReactionService_GetReactionsForItem_Empty(t *testing.T) {
 	}
 	if len(reactions) != 0 {
 		t.Fatalf("expected 0 reactions, got %d", len(reactions))
+	}
+}
+
+func TestReactionService_GetReactionsForItem_ReturnsRows(t *testing.T) {
+	itemID := uuid.New()
+	db := &fakeDB{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			return &fakeRows{rows: [][]any{
+				{uuid.New(), itemID, uuid.New(), "🎉", time.Now(), "alice"},
+			}}, nil
+		},
+	}
+
+	service := NewReactionService(db, &fakeFriendChecker{})
+	reactions, err := service.GetReactionsForItem(context.Background(), itemID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(reactions) != 1 {
+		t.Fatalf("expected 1 reaction, got %d", len(reactions))
 	}
 }
 
@@ -179,6 +256,26 @@ func TestReactionService_GetReactionSummaryForItem_Empty(t *testing.T) {
 	}
 }
 
+func TestReactionService_GetReactionSummaryForItem_ReturnsRows(t *testing.T) {
+	db := &fakeDB{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			return &fakeRows{rows: [][]any{
+				{"🎉", int64(2)},
+				{"👍", int64(1)},
+			}}, nil
+		},
+	}
+
+	service := NewReactionService(db, &fakeFriendChecker{})
+	summaries, err := service.GetReactionSummaryForItem(context.Background(), uuid.New())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(summaries) != 2 {
+		t.Fatalf("expected 2 summaries, got %d", len(summaries))
+	}
+}
+
 func TestReactionService_GetReactionsForCard_Empty(t *testing.T) {
 	db := &fakeDB{
 		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
@@ -193,5 +290,26 @@ func TestReactionService_GetReactionsForCard_Empty(t *testing.T) {
 	}
 	if len(reactions) != 0 {
 		t.Fatalf("expected empty map, got %d", len(reactions))
+	}
+}
+
+func TestReactionService_GetReactionsForCard_ReturnsRows(t *testing.T) {
+	cardID := uuid.New()
+	itemID := uuid.New()
+	db := &fakeDB{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			return &fakeRows{rows: [][]any{
+				{uuid.New(), itemID, uuid.New(), "🎉", time.Now(), "alice"},
+			}}, nil
+		},
+	}
+
+	service := NewReactionService(db, &fakeFriendChecker{})
+	reactions, err := service.GetReactionsForCard(context.Background(), cardID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(reactions[itemID]) != 1 {
+		t.Fatalf("expected 1 reaction, got %d", len(reactions[itemID]))
 	}
 }

@@ -94,3 +94,17 @@ func TestSuggestionService_GetCategories(t *testing.T) {
 		t.Fatalf("expected 2 categories, got %d", len(categories))
 	}
 }
+
+func TestSuggestionService_GetGroupedByCategory_Error(t *testing.T) {
+	db := &fakeDB{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			return nil, context.Canceled
+		},
+	}
+
+	svc := NewSuggestionService(db)
+	_, err := svc.GetGroupedByCategory(context.Background())
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}

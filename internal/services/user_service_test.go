@@ -192,3 +192,90 @@ func TestUserService_GetByID_Success(t *testing.T) {
 		t.Fatalf("expected user id %v, got %v", userID, user.ID)
 	}
 }
+
+func TestUserService_GetByEmail_Success(t *testing.T) {
+	now := time.Now()
+	userID := uuid.New()
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			return rowFromValues(
+				userID,
+				"test@example.com",
+				"hash",
+				"user",
+				true,
+				nil,
+				2,
+				false,
+				now,
+				now,
+			)
+		},
+	}
+
+	service := NewUserService(db)
+	user, err := service.GetByEmail(context.Background(), "test@example.com")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if user.ID != userID {
+		t.Fatalf("expected user id %v, got %v", userID, user.ID)
+	}
+}
+
+func TestUserService_UpdatePassword_Success(t *testing.T) {
+	db := &fakeDB{
+		ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+			return fakeCommandTag{rowsAffected: 1}, nil
+		},
+	}
+
+	service := NewUserService(db)
+	if err := service.UpdatePassword(context.Background(), uuid.New(), "hash"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestUserService_MarkEmailVerified_Success(t *testing.T) {
+	called := false
+	db := &fakeDB{
+		ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+			called = true
+			return fakeCommandTag{rowsAffected: 1}, nil
+		},
+	}
+
+	service := NewUserService(db)
+	if err := service.MarkEmailVerified(context.Background(), uuid.New()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !called {
+		t.Fatal("expected update to be executed")
+	}
+}
+
+func TestUserService_MarkEmailVerified_Error(t *testing.T) {
+	db := &fakeDB{
+		ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+			return fakeCommandTag{}, errors.New("boom")
+		},
+	}
+
+	service := NewUserService(db)
+	if err := service.MarkEmailVerified(context.Background(), uuid.New()); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestUserService_UpdateSearchable_Success(t *testing.T) {
+	db := &fakeDB{
+		ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+			return fakeCommandTag{rowsAffected: 1}, nil
+		},
+	}
+
+	service := NewUserService(db)
+	if err := service.UpdateSearchable(context.Background(), uuid.New(), false); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}

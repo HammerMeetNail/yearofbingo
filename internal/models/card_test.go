@@ -106,3 +106,43 @@ func TestCardStats_ZeroValues(t *testing.T) {
 		t.Error("expected LastCompletion to be nil")
 	}
 }
+
+func TestDefaultFreeSpacePosition(t *testing.T) {
+	card := BingoCard{GridSize: 5}
+	if pos := card.DefaultFreeSpacePosition(); pos != 12 {
+		t.Fatalf("expected center position 12, got %d", pos)
+	}
+
+	card.GridSize = 0
+	if pos := card.DefaultFreeSpacePosition(); pos != 12 {
+		t.Fatalf("expected fallback center position 12, got %d", pos)
+	}
+
+	card.GridSize = 4
+	pos := card.DefaultFreeSpacePosition()
+	if pos < 0 || pos >= 16 {
+		t.Fatalf("expected position within range, got %d", pos)
+	}
+}
+
+func TestDisplayName(t *testing.T) {
+	title := "My Card"
+	card := BingoCard{Title: &title, Year: 2024}
+	if name := card.DisplayName(); name != "My Card" {
+		t.Fatalf("expected title display name, got %s", name)
+	}
+
+	card.Title = nil
+	if name := card.DisplayName(); name != "2024 Bingo Card" {
+		t.Fatalf("expected year display name, got %s", name)
+	}
+}
+
+func TestIsValidCategory(t *testing.T) {
+	if !IsValidCategory("health") {
+		t.Fatal("expected valid category")
+	}
+	if IsValidCategory("invalid") {
+		t.Fatal("expected invalid category")
+	}
+}

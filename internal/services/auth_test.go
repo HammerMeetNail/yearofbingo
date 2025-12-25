@@ -376,6 +376,20 @@ func TestAuthService_DeleteAllUserSessions_DeletesRedisAndDB(t *testing.T) {
 	}
 }
 
+func TestAuthService_DeleteAllUserSessions_QueryError(t *testing.T) {
+	db := &fakeDB{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			return nil, errors.New("boom")
+		},
+	}
+	redis := &fakeRedis{}
+
+	auth := NewAuthService(db, redis)
+	if err := auth.DeleteAllUserSessions(context.Background(), uuid.New()); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 func TestAuthService_ValidateSession_RedisInvalidUserID(t *testing.T) {
 	ctx := context.Background()
 	db := &fakeDB{}
@@ -401,6 +415,45 @@ func TestAuthService_DeleteSession_DBError(t *testing.T) {
 	err := auth.DeleteSession(ctx, "token")
 	if err == nil {
 		t.Fatal("expected error on delete session")
+	}
+}
+
+func TestAuthService_DeleteSession_Success(t *testing.T) {
+	ctx := context.Background()
+	db := &fakeDB{
+		ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+			return fakeCommandTag{rowsAffected: 1}, nil
+		},
+	}
+	redis := &fakeRedis{}
+
+	auth := NewAuthService(db, redis)
+	if err := auth.DeleteSession(ctx, "token"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestAuthService_CreateSession_RedisSuccess(t *testing.T) {
+	ctx := context.Background()
+	userID := uuid.New()
+	db := &fakeDB{
+		ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+			t.Fatal("unexpected db fallback")
+			return fakeCommandTag{}, nil
+		},
+	}
+	redis := &fakeRedis{}
+
+	auth := NewAuthService(db, redis)
+	token, err := auth.CreateSession(ctx, userID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if token == "" {
+		t.Fatal("expected token")
+	}
+	if redis.setCalls != 1 {
+		t.Fatalf("expected redis set, got %d", redis.setCalls)
 	}
 }
 
@@ -441,6 +494,22 @@ func TestAuthService_ValidateSession_DBHit(t *testing.T) {
 	}
 	if user.ID != userID {
 		t.Fatalf("expected user ID %v, got %v", userID, user.ID)
+	}
+}
+
+func TestAuthService_getUserByID_NotFound(t *testing.T) {
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			return fakeRow{scanFunc: func(dest ...any) error {
+				return pgx.ErrNoRows
+			}}
+		},
+	}
+
+	auth := NewAuthService(db, &fakeRedis{})
+	_, err := auth.getUserByID(context.Background(), uuid.New())
+	if !errors.Is(err, ErrUserNotFound) {
+		t.Fatalf("expected ErrUserNotFound, got %v", err)
 	}
 }
 

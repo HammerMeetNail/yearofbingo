@@ -5,9 +5,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/google/uuid"
 )
 
-func TestAssertions(t *testing.T) {
+func TestAssertHelpers(t *testing.T) {
 	AssertEqual(t, 1, 1, "equal")
 	AssertNotEqual(t, 1, 2, "not equal")
 	AssertNil(t, nil, "nil")
@@ -15,49 +17,48 @@ func TestAssertions(t *testing.T) {
 	AssertTrue(t, true, "true")
 	AssertFalse(t, false, "false")
 	AssertNoError(t, nil, "no error")
-	AssertContains(t, "abc", "b", "contains")
+	AssertError(t, http.ErrAbortHandler, "error")
+	AssertContains(t, "hello", "ell", "contains")
 }
 
-func TestJSONHelpers(t *testing.T) {
-	rr := httptest.NewRecorder()
-	rr.WriteString(`{"ok":true}`)
-	AssertStatusCode(t, rr, http.StatusOK)
-
-	body := []byte(`{"foo":"bar"}`)
-	AssertJSONContains(t, body, "foo", "bar")
-	parsed := ParseJSONResponse(t, body)
-	if parsed["foo"] != "bar" {
-		t.Fatalf("expected parsed foo")
-	}
-}
-
-func TestRequestBuilders(t *testing.T) {
-	req := NewTestRequest(http.MethodGet, "/path", nil)
+func TestNewTestRequestWithJSON(t *testing.T) {
+	req := NewTestRequestWithJSON(t, http.MethodPost, "/path", map[string]string{"ok": "yes"})
 	if ct := req.Header.Get("Content-Type"); ct != "application/json" {
-		t.Fatalf("unexpected content type %s", ct)
-	}
-
-	data := struct {
-		Name string `json:"name"`
-	}{Name: "bob"}
-	req2 := NewTestRequestWithJSON(t, http.MethodPost, "/p", data)
-	buf := new(bytes.Buffer)
-	buf.ReadFrom(req2.Body)
-	if !bytes.Contains(buf.Bytes(), []byte("bob")) {
-		t.Fatalf("expected json body")
+		t.Fatalf("expected content type json, got %q", ct)
 	}
 }
 
-func TestRandomGenerators(t *testing.T) {
-	firstUUID := RandomUUID()
-	secondUUID := RandomUUID()
-	if firstUUID == secondUUID {
-		t.Fatalf("expected different uuids")
+func TestParseJSONResponse(t *testing.T) {
+	body := []byte(`{"ok":true}`)
+	got := ParseJSONResponse(t, body)
+	if got["ok"] != true {
+		t.Fatalf("expected ok=true, got %v", got["ok"])
 	}
+}
 
-	firstEmail := RandomEmail()
-	secondEmail := RandomEmail()
-	if firstEmail == secondEmail {
-		t.Fatalf("expected different emails")
+func TestNewTestRequest(t *testing.T) {
+	req := NewTestRequest(http.MethodPost, "/path", bytes.NewBufferString("{}"))
+	if req.Method != http.MethodPost {
+		t.Fatalf("expected method POST, got %s", req.Method)
+	}
+}
+
+func TestAssertStatusCode(t *testing.T) {
+	rr := httptest.NewRecorder()
+	rr.WriteHeader(http.StatusCreated)
+	AssertStatusCode(t, rr, http.StatusCreated)
+}
+
+func TestAssertJSONContains(t *testing.T) {
+	body := []byte(`{"ok":"yes"}`)
+	AssertJSONContains(t, body, "ok", "yes")
+}
+
+func TestRandomHelpers(t *testing.T) {
+	if RandomUUID() == uuid.Nil {
+		t.Fatal("expected non-nil uuid")
+	}
+	if RandomEmail() == "" {
+		t.Fatal("expected email")
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/HammerMeetNail/yearofbingo/internal/models"
 )
@@ -75,6 +76,31 @@ func TestFriendService_SendRequest_AlreadyExists(t *testing.T) {
 	}
 }
 
+func TestFriendService_SendRequest_Success(t *testing.T) {
+	userID := uuid.New()
+	friendID := uuid.New()
+	friendshipID := uuid.New()
+	call := 0
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			call++
+			if call == 1 {
+				return rowFromValues(false)
+			}
+			return rowFromValues(friendshipRowValues(friendshipID, userID, friendID, models.FriendshipStatusPending)...)
+		},
+	}
+
+	svc := NewFriendService(db)
+	friendship, err := svc.SendRequest(context.Background(), userID, friendID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if friendship.ID != friendshipID {
+		t.Fatalf("expected friendship %v, got %v", friendshipID, friendship.ID)
+	}
+}
+
 func TestFriendService_AcceptRequest_NotRecipient(t *testing.T) {
 	friendshipID := uuid.New()
 	userID := uuid.New()
@@ -88,6 +114,28 @@ func TestFriendService_AcceptRequest_NotRecipient(t *testing.T) {
 	_, err := svc.AcceptRequest(context.Background(), userID, friendshipID)
 	if !errors.Is(err, ErrNotFriendshipRecipient) {
 		t.Fatalf("expected ErrNotFriendshipRecipient, got %v", err)
+	}
+}
+
+func TestFriendService_AcceptRequest_Success(t *testing.T) {
+	friendshipID := uuid.New()
+	userID := uuid.New()
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			return rowFromValues(friendshipRowValues(friendshipID, uuid.New(), userID, models.FriendshipStatusPending)...)
+		},
+		ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+			return fakeCommandTag{rowsAffected: 1}, nil
+		},
+	}
+
+	svc := NewFriendService(db)
+	friendship, err := svc.AcceptRequest(context.Background(), userID, friendshipID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if friendship.Status != models.FriendshipStatusAccepted {
+		t.Fatalf("expected accepted status, got %s", friendship.Status)
 	}
 }
 
@@ -127,6 +175,40 @@ func TestFriendService_CancelRequest_NotSender(t *testing.T) {
 	}
 }
 
+func TestFriendService_CancelRequest_Success(t *testing.T) {
+	friendshipID := uuid.New()
+	userID := uuid.New()
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			return rowFromValues(friendshipRowValues(friendshipID, userID, uuid.New(), models.FriendshipStatusPending)...)
+		},
+		ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+			return fakeCommandTag{rowsAffected: 1}, nil
+		},
+	}
+
+	svc := NewFriendService(db)
+	if err := svc.CancelRequest(context.Background(), userID, friendshipID); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestFriendService_CancelRequest_NotPending(t *testing.T) {
+	friendshipID := uuid.New()
+	userID := uuid.New()
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			return rowFromValues(friendshipRowValues(friendshipID, userID, uuid.New(), models.FriendshipStatusAccepted)...)
+		},
+	}
+
+	svc := NewFriendService(db)
+	err := svc.CancelRequest(context.Background(), userID, friendshipID)
+	if !errors.Is(err, ErrFriendshipNotPending) {
+		t.Fatalf("expected ErrFriendshipNotPending, got %v", err)
+	}
+}
+
 func TestFriendService_RejectRequest_NotRecipient(t *testing.T) {
 	friendshipID := uuid.New()
 	userID := uuid.New()
@@ -140,6 +222,40 @@ func TestFriendService_RejectRequest_NotRecipient(t *testing.T) {
 	err := svc.RejectRequest(context.Background(), userID, friendshipID)
 	if !errors.Is(err, ErrNotFriendshipRecipient) {
 		t.Fatalf("expected ErrNotFriendshipRecipient, got %v", err)
+	}
+}
+
+func TestFriendService_RejectRequest_Success(t *testing.T) {
+	friendshipID := uuid.New()
+	userID := uuid.New()
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			return rowFromValues(friendshipRowValues(friendshipID, uuid.New(), userID, models.FriendshipStatusPending)...)
+		},
+		ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+			return fakeCommandTag{rowsAffected: 1}, nil
+		},
+	}
+
+	svc := NewFriendService(db)
+	if err := svc.RejectRequest(context.Background(), userID, friendshipID); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestFriendService_RejectRequest_NotPending(t *testing.T) {
+	friendshipID := uuid.New()
+	userID := uuid.New()
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			return rowFromValues(friendshipRowValues(friendshipID, uuid.New(), userID, models.FriendshipStatusAccepted)...)
+		},
+	}
+
+	svc := NewFriendService(db)
+	err := svc.RejectRequest(context.Background(), userID, friendshipID)
+	if !errors.Is(err, ErrFriendshipNotPending) {
+		t.Fatalf("expected ErrFriendshipNotPending, got %v", err)
 	}
 }
 
@@ -159,6 +275,43 @@ func TestFriendService_RemoveFriend_NotParticipant(t *testing.T) {
 	}
 }
 
+func TestFriendService_RemoveFriend_Success(t *testing.T) {
+	friendshipID := uuid.New()
+	userID := uuid.New()
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			return rowFromValues(friendshipRowValues(friendshipID, userID, uuid.New(), models.FriendshipStatusAccepted)...)
+		},
+		ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+			return fakeCommandTag{rowsAffected: 1}, nil
+		},
+	}
+
+	svc := NewFriendService(db)
+	if err := svc.RemoveFriend(context.Background(), userID, friendshipID); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestFriendService_RemoveFriend_ExecError(t *testing.T) {
+	friendshipID := uuid.New()
+	userID := uuid.New()
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			return rowFromValues(friendshipRowValues(friendshipID, userID, uuid.New(), models.FriendshipStatusAccepted)...)
+		},
+		ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+			return fakeCommandTag{}, errors.New("boom")
+		},
+	}
+
+	svc := NewFriendService(db)
+	err := svc.RemoveFriend(context.Background(), userID, friendshipID)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 func TestFriendService_IsFriend_True(t *testing.T) {
 	db := &fakeDB{
 		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
@@ -173,6 +326,39 @@ func TestFriendService_IsFriend_True(t *testing.T) {
 	}
 	if !ok {
 		t.Fatal("expected friendship to be true")
+	}
+}
+
+func TestFriendService_IsFriend_False(t *testing.T) {
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			return rowFromValues(false)
+		},
+	}
+
+	svc := NewFriendService(db)
+	ok, err := svc.IsFriend(context.Background(), uuid.New(), uuid.New())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ok {
+		t.Fatal("expected friendship to be false")
+	}
+}
+
+func TestFriendService_IsFriend_Error(t *testing.T) {
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			return fakeRow{scanFunc: func(dest ...any) error {
+				return errors.New("boom")
+			}}
+		},
+	}
+
+	svc := NewFriendService(db)
+	_, err := svc.IsFriend(context.Background(), uuid.New(), uuid.New())
+	if err == nil {
+		t.Fatal("expected error")
 	}
 }
 
@@ -209,6 +395,28 @@ func TestFriendService_ListFriends_Empty(t *testing.T) {
 	}
 }
 
+func TestFriendService_ListFriends_ReturnsRows(t *testing.T) {
+	userID := uuid.New()
+	friendshipID := uuid.New()
+	friendID := uuid.New()
+	db := &fakeDB{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			return &fakeRows{rows: [][]any{
+				{friendshipID, userID, friendID, models.FriendshipStatusAccepted, time.Now(), "friend", "friend@example.com"},
+			}}, nil
+		},
+	}
+
+	svc := NewFriendService(db)
+	friends, err := svc.ListFriends(context.Background(), userID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(friends) != 1 {
+		t.Fatalf("expected 1 friend, got %d", len(friends))
+	}
+}
+
 func TestFriendService_ListPendingRequests_Empty(t *testing.T) {
 	db := &fakeDB{
 		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
@@ -223,6 +431,28 @@ func TestFriendService_ListPendingRequests_Empty(t *testing.T) {
 	}
 	if len(requests) != 0 {
 		t.Fatalf("expected 0 requests, got %d", len(requests))
+	}
+}
+
+func TestFriendService_ListPendingRequests_ReturnsRows(t *testing.T) {
+	userID := uuid.New()
+	friendshipID := uuid.New()
+	friendID := uuid.New()
+	db := &fakeDB{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			return &fakeRows{rows: [][]any{
+				{friendshipID, friendID, userID, models.FriendshipStatusPending, time.Now(), "sender", "sender@example.com"},
+			}}, nil
+		},
+	}
+
+	svc := NewFriendService(db)
+	requests, err := svc.ListPendingRequests(context.Background(), userID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(requests) != 1 {
+		t.Fatalf("expected 1 request, got %d", len(requests))
 	}
 }
 
@@ -243,6 +473,28 @@ func TestFriendService_ListSentRequests_Empty(t *testing.T) {
 	}
 }
 
+func TestFriendService_ListSentRequests_ReturnsRows(t *testing.T) {
+	userID := uuid.New()
+	friendshipID := uuid.New()
+	friendID := uuid.New()
+	db := &fakeDB{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			return &fakeRows{rows: [][]any{
+				{friendshipID, userID, friendID, models.FriendshipStatusPending, time.Now(), "friend", "friend@example.com"},
+			}}, nil
+		},
+	}
+
+	svc := NewFriendService(db)
+	requests, err := svc.ListSentRequests(context.Background(), userID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(requests) != 1 {
+		t.Fatalf("expected 1 request, got %d", len(requests))
+	}
+}
+
 func TestFriendService_GetFriendUserID_ReturnsOther(t *testing.T) {
 	friendshipID := uuid.New()
 	currentUser := uuid.New()
@@ -260,5 +512,37 @@ func TestFriendService_GetFriendUserID_ReturnsOther(t *testing.T) {
 	}
 	if other != otherUser {
 		t.Fatalf("expected other user %v, got %v", otherUser, other)
+	}
+}
+
+func TestFriendService_GetFriendUserID_NotAccepted(t *testing.T) {
+	friendshipID := uuid.New()
+	currentUser := uuid.New()
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			return rowFromValues(friendshipRowValues(friendshipID, currentUser, uuid.New(), models.FriendshipStatusPending)...)
+		},
+	}
+
+	svc := NewFriendService(db)
+	_, err := svc.GetFriendUserID(context.Background(), currentUser, friendshipID)
+	if !errors.Is(err, ErrNotFriend) {
+		t.Fatalf("expected ErrNotFriend, got %v", err)
+	}
+}
+
+func TestFriendService_GetByID_NotFound(t *testing.T) {
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			return fakeRow{scanFunc: func(dest ...any) error {
+				return pgx.ErrNoRows
+			}}
+		},
+	}
+
+	svc := NewFriendService(db)
+	_, err := svc.getByID(context.Background(), uuid.New())
+	if !errors.Is(err, ErrFriendshipNotFound) {
+		t.Fatalf("expected ErrFriendshipNotFound, got %v", err)
 	}
 }
