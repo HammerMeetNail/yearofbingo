@@ -1497,8 +1497,9 @@ const App = {
                 The AI Goal Wizard is available after you create an account.
               </div>
               <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                <a href="#register" class="btn btn-primary btn-sm">Create Account</a>
-                <a href="#login" class="btn btn-secondary btn-sm">Login</a>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="App.showAIAuthModal()" style="display: flex; align-items: center; gap: 0.35rem;">
+                  <span>✨</span> Generate with AI Wizard
+                </button>
               </div>
             </div>
           </div>
