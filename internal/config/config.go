@@ -43,6 +43,7 @@ type AIConfig struct {
 	GeminiAPIKey          string
 	Stub                  bool
 	GeminiModel           string
+	GeminiThinkingLevel   string
 	GeminiThinkingBudget  int
 	GeminiTemperature     float64
 	GeminiMaxOutputTokens int
@@ -106,9 +107,10 @@ func Load() (*Config, error) {
 		AI: AIConfig{
 			GeminiAPIKey:          getEnv("GEMINI_API_KEY", ""),
 			GeminiModel:           getEnv("GEMINI_MODEL", "gemini-3-flash-preview"),
+			GeminiThinkingLevel:   getEnv("GEMINI_THINKING_LEVEL", "low"),
 			GeminiThinkingBudget:  getEnvInt("GEMINI_THINKING_BUDGET", 0),
 			GeminiTemperature:     getEnvFloat64("GEMINI_TEMPERATURE", 0.8),
-			GeminiMaxOutputTokens: getEnvInt("GEMINI_MAX_OUTPUT_TOKENS", 6000),
+			GeminiMaxOutputTokens: getEnvInt("GEMINI_MAX_OUTPUT_TOKENS", 4096),
 			Stub:                  getEnvBool("AI_STUB", false),
 		},
 	}

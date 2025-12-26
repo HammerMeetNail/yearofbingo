@@ -20,8 +20,10 @@ import (
 type MockAIService struct {
 	GenerateGoalsFunc func(ctx context.Context, userID uuid.UUID, prompt ai.GoalPrompt) ([]string, ai.UsageStats, error)
 	ConsumeFunc       func(ctx context.Context, userID uuid.UUID) (int, error)
+	RefundFunc        func(ctx context.Context, userID uuid.UUID) error
 	GenerateCalls     int
 	ConsumeCalls      int
+	RefundCalls       int
 }
 
 func (m *MockAIService) GenerateGoals(ctx context.Context, userID uuid.UUID, prompt ai.GoalPrompt) ([]string, ai.UsageStats, error) {
@@ -38,6 +40,14 @@ func (m *MockAIService) ConsumeUnverifiedFreeGeneration(ctx context.Context, use
 		return 0, nil
 	}
 	return m.ConsumeFunc(ctx, userID)
+}
+
+func (m *MockAIService) RefundUnverifiedFreeGeneration(ctx context.Context, userID uuid.UUID) error {
+	m.RefundCalls++
+	if m.RefundFunc == nil {
+		return nil
+	}
+	return m.RefundFunc(ctx, userID)
 }
 
 func TestGenerate(t *testing.T) {
@@ -61,6 +71,7 @@ func TestGenerate(t *testing.T) {
 		freeRemaining  *int
 		generateCalls  int
 		consumeCalls   int
+		refundCalls    int
 	}{
 		{
 			name:        "Success",
@@ -159,6 +170,30 @@ func TestGenerate(t *testing.T) {
 			freeRemaining:  ptrToIntValue(4),
 			generateCalls:  1,
 			consumeCalls:   1,
+		},
+		{
+			name:        "Service Error - Unverified refunds quota",
+			requestBody: validBody,
+			user:        &models.User{ID: uuid.New(), EmailVerified: false},
+			mockSetup: func() *MockAIService {
+				return &MockAIService{
+					ConsumeFunc: func(ctx context.Context, userID uuid.UUID) (int, error) {
+						return 4, nil
+					},
+					RefundFunc: func(ctx context.Context, userID uuid.UUID) error {
+						return nil
+					},
+					GenerateGoalsFunc: func(ctx context.Context, userID uuid.UUID, prompt ai.GoalPrompt) ([]string, ai.UsageStats, error) {
+						return nil, ai.UsageStats{}, ai.ErrAIProviderUnavailable
+					},
+				}
+			},
+			expectedStatus: http.StatusServiceUnavailable,
+			expectedError:  "The AI service is currently down. Please try again later.",
+			freeRemaining:  ptrToIntValue(5),
+			generateCalls:  1,
+			consumeCalls:   1,
+			refundCalls:    1,
 		},
 		{
 			name:        "Unverified blocked when quota exhausted",
@@ -529,11 +564,17 @@ func TestGenerate(t *testing.T) {
 			if tt.consumeCalls > 0 && mockService.ConsumeCalls != tt.consumeCalls {
 				t.Fatalf("expected ConsumeUnverifiedFreeGeneration calls %d, got %d", tt.consumeCalls, mockService.ConsumeCalls)
 			}
+			if tt.refundCalls > 0 && mockService.RefundCalls != tt.refundCalls {
+				t.Fatalf("expected RefundUnverifiedFreeGeneration calls %d, got %d", tt.refundCalls, mockService.RefundCalls)
+			}
 			if tt.generateCalls == 0 && mockService.GenerateCalls != 0 {
 				t.Fatalf("expected no GenerateGoals calls, got %d", mockService.GenerateCalls)
 			}
 			if tt.consumeCalls == 0 && mockService.ConsumeCalls != 0 {
 				t.Fatalf("expected no ConsumeUnverifiedFreeGeneration calls, got %d", mockService.ConsumeCalls)
+			}
+			if tt.refundCalls == 0 && mockService.RefundCalls != 0 {
+				t.Fatalf("expected no RefundUnverifiedFreeGeneration calls, got %d", mockService.RefundCalls)
 			}
 		})
 	}
