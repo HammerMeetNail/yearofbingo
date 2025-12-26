@@ -37,6 +37,15 @@ func run() error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
+	if cfg.Server.Debug {
+		logger.SetLevel(logging.LevelDebug)
+		logging.SetDefaultLevel(logging.LevelDebug)
+		logger.Debug("Debug logging enabled", map[string]interface{}{
+			"max_chars": cfg.Server.DebugMaxChars,
+			"env":       cfg.Server.Environment,
+		})
+	}
+
 	logger.Info("Starting Year of Bingo server...")
 
 	// Connect to PostgreSQL
@@ -236,10 +245,12 @@ func run() error {
 	// Create server
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	server := &http.Server{
-		Addr:         addr,
-		Handler:      handler,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		Addr:        addr,
+		Handler:     handler,
+		ReadTimeout: 15 * time.Second,
+		// AI generation calls can legitimately take >15s; keep a higher write timeout
+		// so the frontend gets a JSON error/response instead of a dropped connection.
+		WriteTimeout: 95 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 

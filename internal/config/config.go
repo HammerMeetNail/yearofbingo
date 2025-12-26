@@ -15,10 +15,12 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Host        string
-	Port        int
-	Secure      bool   // Use HTTPS-only cookies
-	Environment string // "development", "production", "test"
+	Host          string
+	Port          int
+	Secure        bool   // Use HTTPS-only cookies
+	Environment   string // "development", "production", "test"
+	Debug         bool
+	DebugMaxChars int
 }
 
 type DatabaseConfig struct {
@@ -38,8 +40,13 @@ type RedisConfig struct {
 }
 
 type AIConfig struct {
-	GeminiAPIKey string
-	Stub         bool
+	GeminiAPIKey          string
+	Stub                  bool
+	GeminiModel           string
+	GeminiThinkingLevel   string
+	GeminiThinkingBudget  int
+	GeminiTemperature     float64
+	GeminiMaxOutputTokens int
 }
 
 type EmailConfig struct {
@@ -67,10 +74,12 @@ func (r RedisConfig) Addr() string {
 func Load() (*Config, error) {
 	cfg := &Config{
 		Server: ServerConfig{
-			Host:        getEnv("SERVER_HOST", "0.0.0.0"),
-			Port:        getEnvInt("SERVER_PORT", 8080),
-			Secure:      getEnvBool("SERVER_SECURE", false),
-			Environment: getEnv("APP_ENV", "development"),
+			Host:          getEnv("SERVER_HOST", "0.0.0.0"),
+			Port:          getEnvInt("SERVER_PORT", 8080),
+			Secure:        getEnvBool("SERVER_SECURE", false),
+			Environment:   getEnv("APP_ENV", "development"),
+			Debug:         getEnvBool("DEBUG", false),
+			DebugMaxChars: getEnvInt("DEBUG_LOG_MAX_CHARS", 8000),
 		},
 		Database: DatabaseConfig{
 			Host:     getEnv("DB_HOST", "localhost"),
@@ -96,8 +105,13 @@ func Load() (*Config, error) {
 			SMTPPort:     getEnvInt("SMTP_PORT", 1025),
 		},
 		AI: AIConfig{
-			GeminiAPIKey: getEnv("GEMINI_API_KEY", ""),
-			Stub:         getEnvBool("AI_STUB", false),
+			GeminiAPIKey:          getEnv("GEMINI_API_KEY", ""),
+			GeminiModel:           getEnv("GEMINI_MODEL", "gemini-3-flash-preview"),
+			GeminiThinkingLevel:   getEnv("GEMINI_THINKING_LEVEL", "low"),
+			GeminiThinkingBudget:  getEnvInt("GEMINI_THINKING_BUDGET", 0),
+			GeminiTemperature:     getEnvFloat64("GEMINI_TEMPERATURE", 0.8),
+			GeminiMaxOutputTokens: getEnvInt("GEMINI_MAX_OUTPUT_TOKENS", 4096),
+			Stub:                  getEnvBool("AI_STUB", false),
 		},
 	}
 
@@ -124,6 +138,15 @@ func getEnvBool(key string, defaultValue bool) bool {
 	if value, exists := os.LookupEnv(key); exists {
 		if boolVal, err := strconv.ParseBool(value); err == nil {
 			return boolVal
+		}
+	}
+	return defaultValue
+}
+
+func getEnvFloat64(key string, defaultValue float64) float64 {
+	if value, exists := os.LookupEnv(key); exists {
+		if floatVal, err := strconv.ParseFloat(value, 64); err == nil {
+			return floatVal
 		}
 	}
 	return defaultValue

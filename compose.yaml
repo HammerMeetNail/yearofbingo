@@ -9,6 +9,8 @@ services:
       - SERVER_HOST=0.0.0.0
       - SERVER_PORT=8080
       - APP_ENV=development
+      - DEBUG=true
+      - DEBUG_LOG_MAX_CHARS=8000
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=bingo
@@ -27,6 +29,11 @@ services:
       - EMAIL_FROM_NAME=Year of Bingo
       - APP_BASE_URL=http://localhost:8080
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL}
+      - GEMINI_THINKING_LEVEL=${GEMINI_THINKING_LEVEL}
+      - GEMINI_THINKING_BUDGET=${GEMINI_THINKING_BUDGET}
+      - GEMINI_TEMPERATURE=${GEMINI_TEMPERATURE}
+      - GEMINI_MAX_OUTPUT_TOKENS=${GEMINI_MAX_OUTPUT_TOKENS}
       - AI_STUB=${AI_STUB}
     depends_on:
       postgres:

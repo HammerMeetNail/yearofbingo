@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -14,6 +15,7 @@ import (
 type AIService interface {
 	GenerateGoals(ctx context.Context, userID uuid.UUID, prompt ai.GoalPrompt) ([]string, ai.UsageStats, error)
 	ConsumeUnverifiedFreeGeneration(ctx context.Context, userID uuid.UUID) (int, error)
+	RefundUnverifiedFreeGeneration(ctx context.Context, userID uuid.UUID) (bool, error)
 }
 
 type AIHandler struct {
@@ -102,6 +104,8 @@ func (h *AIHandler) Generate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var freeRemaining *int
+	freeRemainingValue := 0
+	consumedFree := false
 	if !user.EmailVerified {
 		remaining, err := h.service.ConsumeUnverifiedFreeGeneration(r.Context(), user.ID)
 		if err != nil {
@@ -121,7 +125,9 @@ func (h *AIHandler) Generate(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		freeRemaining = &remaining
+		freeRemainingValue = remaining
+		freeRemaining = &freeRemainingValue
+		consumedFree = true
 	}
 
 	prompt := ai.GoalPrompt{
@@ -151,6 +157,14 @@ func (h *AIHandler) Generate(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, ai.ErrAIProviderUnavailable):
 			status = http.StatusServiceUnavailable
 			msg = "The AI service is currently down. Please try again later."
+		}
+
+		if consumedFree && (errors.Is(err, ai.ErrAIProviderUnavailable) || errors.Is(err, ai.ErrAINotConfigured) || errors.Is(err, ai.ErrRateLimitExceeded)) {
+			refundCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			if refunded, refundErr := h.service.RefundUnverifiedFreeGeneration(refundCtx, user.ID); refundErr == nil && refunded && freeRemaining != nil {
+				freeRemainingValue++
+			}
 		}
 
 		writeJSON(w, status, GenerateErrorResponse{

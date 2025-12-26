@@ -69,7 +69,7 @@ func TestGenerateGoals(t *testing.T) {
 		{
 			name: "success",
 			roundTrip: func(r *http.Request) (*http.Response, error) {
-				if !strings.Contains(r.URL.Path, geminiModel) {
+				if !strings.Contains(r.URL.Path, "test-model") {
 					t.Errorf("expected URL to contain model name, got %s", r.URL.Path)
 				}
 				if got := r.Header.Get("x-goog-api-key"); got != "test-key" {
@@ -85,15 +85,21 @@ func TestGenerateGoals(t *testing.T) {
 					t.Error("expected prompt contents")
 					return nil, fmt.Errorf("missing prompt contents")
 				}
+				if req.GenerationConfig.Temperature == 0 {
+					t.Errorf("expected non-zero temperature")
+				}
+				if req.GenerationConfig.MaxOutputTokens == 0 {
+					t.Errorf("expected non-zero maxOutputTokens")
+				}
 
 				text := req.Contents[0].Parts[0].Text
-				if !strings.Contains(text, "medium-difficulty hobbies goals") {
+				if !strings.Contains(text, "medium-difficulty hobbies bingo goals") {
 					t.Errorf("expected category+difficulty in prompt, got %q", text)
 				}
 				if !strings.Contains(text, "<user_focus>\nCooking\n</user_focus>") {
 					t.Errorf("expected focus block in prompt, got %q", text)
 				}
-				if !strings.Contains(text, "BUDGET CONSTRAINT: The goals must be completely free or very low cost (under $20).") {
+				if !strings.Contains(text, "- Budget: The goals must be completely free or very low cost (under $20).") {
 					t.Errorf("expected budget instruction in prompt, got %q", text)
 				}
 
@@ -318,15 +324,50 @@ func TestGenerateGoals(t *testing.T) {
 			},
 			wantErrIs: ErrAIProviderUnavailable,
 		},
+		{
+			name: "thinking-enabled",
+			roundTrip: func(r *http.Request) (*http.Response, error) {
+				var req geminiRequest
+				if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+					t.Errorf("failed to decode request: %v", err)
+					return nil, fmt.Errorf("failed to decode request")
+				}
+				if req.GenerationConfig.ThinkingConfig == nil || req.GenerationConfig.ThinkingConfig.ThinkingBudget != 64 {
+					t.Errorf("expected thinkingConfig.thinkingBudget=64, got %#v", req.GenerationConfig.ThinkingConfig)
+				}
+
+				resp := geminiResponse{
+					Candidates: []geminiCandidate{
+						{
+							Content: geminiContent{
+								Parts: []geminiPart{
+									{Text: mustJSON(t, makeGoals(24))},
+								},
+							},
+							FinishReason: "STOP",
+						},
+					},
+					Usage: geminiUsage{},
+				}
+				return jsonHTTPResponse(t, http.StatusOK, resp), nil
+			},
+			wantGoals: 24,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{AI: config.AIConfig{GeminiAPIKey: "test-key"}}
 			service := &Service{
-				apiKey: cfg.AI.GeminiAPIKey,
-				client: &http.Client{Transport: roundTripperFunc(tt.roundTrip)},
-				db:     nil,
+				apiKey:          cfg.AI.GeminiAPIKey,
+				client:          &http.Client{Transport: roundTripperFunc(tt.roundTrip)},
+				db:              nil,
+				model:           "test-model",
+				temperature:     0.8,
+				maxOutputTokens: 1024,
+			}
+			if tt.name == "thinking-enabled" {
+				service.thinkingBudget = 64
 			}
 
 			prompt := GoalPrompt{

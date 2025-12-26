@@ -183,6 +183,8 @@ yearofbingo/
 | `SERVER_HOST` | Server bind address | `0.0.0.0` |
 | `SERVER_PORT` | Server port | `8080` |
 | `SERVER_SECURE` | Enable secure cookies | `false` |
+| `DEBUG` | Enable debug-level logging | `false` |
+| `DEBUG_LOG_MAX_CHARS` | Max chars to log for large debug fields | `8000` |
 | `DB_HOST` | PostgreSQL host | `localhost` |
 | `DB_PORT` | PostgreSQL port | `5432` |
 | `DB_USER` | PostgreSQL user | `bingo` |
@@ -194,12 +196,21 @@ yearofbingo/
 | `REDIS_PASSWORD` | Redis password | (empty) |
 | `REDIS_DB` | Redis database number | `0` |
 | `GEMINI_API_KEY` | Gemini API key (server-side only) | (empty) |
+| `GEMINI_MODEL` | Gemini model name (server-side only) | `gemini-3-flash-preview` |
+| `GEMINI_THINKING_LEVEL` | Gemini 3 thinking level (minimal/low/medium/high) | `low` |
+| `GEMINI_THINKING_BUDGET` | Gemini 2.5 thinking budget (0 disables) | `0` |
+| `GEMINI_TEMPERATURE` | Gemini sampling temperature | `0.8` |
+| `GEMINI_MAX_OUTPUT_TOKENS` | Gemini max output tokens | `4096` |
 | `AI_RATE_LIMIT` | AI generations per hour per user | `10` (prod), `100` (dev) |
 | `EMAIL_PROVIDER` | Email provider (resend, smtp, console) | `console` |
 | `RESEND_API_KEY` | Resend API key (for production) | - |
 | `SMTP_HOST` | SMTP host (for local dev with Mailpit) | `mailpit` |
 | `SMTP_PORT` | SMTP port | `1025` |
 | `APP_BASE_URL` | Application base URL for email links | `http://localhost:8080` |
+
+## Debug Logging
+
+Set `DEBUG=true` to enable debug-level logs. In `APP_ENV=development`, this also logs Gemini prompt/response text for AI requests (truncated to `DEBUG_LOG_MAX_CHARS`); do not enable in production.
 
 ## API Endpoints
 

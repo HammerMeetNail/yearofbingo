@@ -8,9 +8,10 @@ import (
 func TestLoad_Defaults(t *testing.T) {
 	// Clear any existing env vars that might interfere
 	envVars := []string{
-		"SERVER_HOST", "SERVER_PORT", "SERVER_SECURE",
+		"SERVER_HOST", "SERVER_PORT", "SERVER_SECURE", "DEBUG", "DEBUG_LOG_MAX_CHARS",
 		"DB_HOST", "DB_PORT", "DB_USER", "DB_PASSWORD", "DB_NAME", "DB_SSLMODE",
 		"REDIS_HOST", "REDIS_PORT", "REDIS_PASSWORD", "REDIS_DB",
+		"AI_STUB", "GEMINI_API_KEY", "GEMINI_MODEL", "GEMINI_THINKING_LEVEL", "GEMINI_THINKING_BUDGET", "GEMINI_TEMPERATURE", "GEMINI_MAX_OUTPUT_TOKENS",
 	}
 	for _, v := range envVars {
 		os.Unsetenv(v)
@@ -30,6 +31,12 @@ func TestLoad_Defaults(t *testing.T) {
 	}
 	if cfg.Server.Secure != false {
 		t.Error("expected Server.Secure to be false")
+	}
+	if cfg.Server.Debug != false {
+		t.Error("expected Server.Debug to be false")
+	}
+	if cfg.Server.DebugMaxChars != 8000 {
+		t.Errorf("expected Server.DebugMaxChars to be 8000, got %d", cfg.Server.DebugMaxChars)
 	}
 
 	// Database defaults
@@ -65,6 +72,29 @@ func TestLoad_Defaults(t *testing.T) {
 	if cfg.Redis.DB != 0 {
 		t.Errorf("expected Redis.DB to be 0, got %d", cfg.Redis.DB)
 	}
+
+	// AI defaults
+	if cfg.AI.GeminiAPIKey != "" {
+		t.Errorf("expected AI.GeminiAPIKey to be empty, got %q", cfg.AI.GeminiAPIKey)
+	}
+	if cfg.AI.GeminiModel != "gemini-3-flash-preview" {
+		t.Errorf("expected AI.GeminiModel to be gemini-3-flash-preview, got %q", cfg.AI.GeminiModel)
+	}
+	if cfg.AI.GeminiThinkingLevel != "low" {
+		t.Errorf("expected AI.GeminiThinkingLevel to be low, got %q", cfg.AI.GeminiThinkingLevel)
+	}
+	if cfg.AI.GeminiThinkingBudget != 0 {
+		t.Errorf("expected AI.GeminiThinkingBudget to be 0, got %d", cfg.AI.GeminiThinkingBudget)
+	}
+	if cfg.AI.GeminiTemperature != 0.8 {
+		t.Errorf("expected AI.GeminiTemperature to be 0.8, got %v", cfg.AI.GeminiTemperature)
+	}
+	if cfg.AI.GeminiMaxOutputTokens != 4096 {
+		t.Errorf("expected AI.GeminiMaxOutputTokens to be 4096, got %d", cfg.AI.GeminiMaxOutputTokens)
+	}
+	if cfg.AI.Stub != false {
+		t.Error("expected AI.Stub to be false")
+	}
 }
 
 func TestLoad_CustomValues(t *testing.T) {
@@ -72,6 +102,8 @@ func TestLoad_CustomValues(t *testing.T) {
 	os.Setenv("SERVER_HOST", "127.0.0.1")
 	os.Setenv("SERVER_PORT", "3000")
 	os.Setenv("SERVER_SECURE", "true")
+	os.Setenv("DEBUG", "true")
+	os.Setenv("DEBUG_LOG_MAX_CHARS", "1234")
 	os.Setenv("DB_HOST", "db.example.com")
 	os.Setenv("DB_PORT", "5433")
 	os.Setenv("DB_USER", "admin")
@@ -88,6 +120,8 @@ func TestLoad_CustomValues(t *testing.T) {
 		os.Unsetenv("SERVER_HOST")
 		os.Unsetenv("SERVER_PORT")
 		os.Unsetenv("SERVER_SECURE")
+		os.Unsetenv("DEBUG")
+		os.Unsetenv("DEBUG_LOG_MAX_CHARS")
 		os.Unsetenv("DB_HOST")
 		os.Unsetenv("DB_PORT")
 		os.Unsetenv("DB_USER")
@@ -114,6 +148,12 @@ func TestLoad_CustomValues(t *testing.T) {
 	}
 	if cfg.Server.Secure != true {
 		t.Error("expected Server.Secure to be true")
+	}
+	if cfg.Server.Debug != true {
+		t.Error("expected Server.Debug to be true")
+	}
+	if cfg.Server.DebugMaxChars != 1234 {
+		t.Errorf("expected Server.DebugMaxChars to be 1234, got %d", cfg.Server.DebugMaxChars)
 	}
 
 	// Database values
