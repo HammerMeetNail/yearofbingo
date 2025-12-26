@@ -143,6 +143,12 @@ Artifacts:
 - HTML report: `playwright-report/`
 - Raw results: `test-results/`
 
+Notes:
+- E2E runs with `AI_STUB=1` by default so AI wizard tests are deterministic (no network/API keys).
+- Specs live in `tests/e2e/*.spec.js` (with shared helpers in `tests/e2e/helpers.js`).
+- Seeded-data tests rely on the seeded baseline created by `scripts/seed.sh` (see `tests/e2e/seeded-data.spec.js`).
+- For a current “coverage map” of workflows, see `plans/playwright.md`.
+
 CI runs the E2E suite headless using Docker Compose and the Playwright container (Mailpit is used for verification/magic-link/reset tests).
 
 ## Project Structure
