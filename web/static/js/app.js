@@ -1210,6 +1210,9 @@ const App = {
               <i class="fas fa-${visibilityIcon}"></i> ${card.visible_to_friends ? 'Visible' : 'Private'}
             </span>
             ${card.is_archived ? '<div class="archive-badge">Archived</div>' : ''}
+            <button class="btn btn-ghost btn-sm dashboard-delete-btn" style="color: var(--color-danger);" onclick="event.stopPropagation(); App.deleteCard('${card.id}')" aria-label="Delete card" title="Delete card">
+              <i class="fas fa-trash"></i>
+            </button>
           </div>
         </div>
         <a href="${cardLink}" style="text-decoration: none; display: block;">

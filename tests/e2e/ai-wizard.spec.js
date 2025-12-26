@@ -79,9 +79,7 @@ test('AI wizard handles mix category in stub mode', async ({ page }, testInfo) =
   await expect(page.locator('.ai-goal-input')).toHaveCount(24);
   await expect(page.locator('.ai-goal-input').first()).toHaveValue(/.+/);
 
-  await page.evaluate(() => {
-    App.closeModal();
-  });
+  await page.keyboard.press('Escape');
   await expect(page.locator('#modal-overlay')).not.toHaveClass(/modal-overlay--visible/);
 });
 
