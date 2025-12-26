@@ -52,7 +52,10 @@ test('AI wizard append mode respects no-FREE card capacity', async ({ page }, te
   const user = buildUser(testInfo, 'ainofree');
   await register(page, user);
 
+  await createCardFromAuthenticatedCreate(page, { title: 'Initial Card' });
   await createCardFromModal(page, { title: 'No Free', gridSize: 4, hasFree: false });
+  await expect(page.locator('.bingo-header')).toHaveCount(4);
+  await expect(page.locator('.bingo-cell[data-position]')).toHaveCount(16);
 
   const manualGoals = ['Manual Goal A', 'Manual Goal B'];
   for (const goal of manualGoals) {

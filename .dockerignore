@@ -17,6 +17,7 @@ server
 
 # Local caches
 .cache/
+.gocache/
 
 # Test artifacts
 coverage.out

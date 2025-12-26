@@ -57,6 +57,32 @@ test('AI wizard create mode respects non-default grid size', async ({ page }, te
   await expect(page.locator('#item-input')).toBeVisible();
   await expect(page.locator('.bingo-cell--free')).toHaveCount(1);
   await expect(page.locator('.bingo-cell:not(.bingo-cell--free)')).toHaveCount(8);
+  await expect(page.locator('.bingo-cell[data-item-id]:not(.bingo-cell--free)')).toHaveCount(8);
+});
+
+test('AI wizard handles mix category in stub mode', async ({ page }, testInfo) => {
+  const user = buildUser(testInfo, 'aimix');
+  await register(page, user);
+
+  await page.getByRole('button', { name: /Generate with AI Wizard/i }).click();
+  await expect(page.locator('#modal-title')).toContainText('AI Goal Wizard');
+
+  await page.selectOption('#ai-category', 'mix');
+  await page.check('input[name="difficulty"][value="medium"]');
+  await page.check('input[name="budget"][value="free"]');
+  await page.fill('#ai-focus', 'Surprise me');
+  await page.evaluate(() => {
+    document.getElementById('ai-wizard-form')?.requestSubmit();
+  });
+
+  await expect(page.locator('#modal-title')).toContainText('Review Your Goals');
+  await expect(page.locator('.ai-goal-input')).toHaveCount(24);
+  await expect(page.locator('.ai-goal-input').first()).toHaveValue(/.+/);
+
+  await page.evaluate(() => {
+    App.closeModal();
+  });
+  await expect(page.locator('#modal-overlay')).not.toHaveClass(/modal-overlay--visible/);
 });
 
 test('AI wizard requires verification after free generations are used', async ({ page }, testInfo) => {
