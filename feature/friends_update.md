@@ -230,13 +230,13 @@ New/updated endpoints (names illustrative; finalize during implementation):
 - Invites
   - `POST /api/friends/invites` → create invite (returns URL/token)
   - `GET /api/friends/invites` → list my active invites
-  - `DELETE /api/friends/invites/{id}` → revoke
-  - `POST /api/friends/invites/{token}/accept` → accept (session required)
+  - `DELETE /api/friends/invites/{id}/revoke` → revoke
+  - `POST /api/friends/invites/accept` → accept (session required, token in body)
 
 - Blocking
-  - `POST /api/friends/block` with `{ user_id }`
-  - `DELETE /api/friends/block/{user_id}`
-  - `GET /api/friends/blocked`
+  - `POST /api/blocks` with `{ user_id }`
+  - `DELETE /api/blocks/{user_id}`
+  - `GET /api/blocks`
 
 - Search hardening
   - Keep `GET /api/friends/search` but enforce new rules and rate limits.
@@ -258,7 +258,7 @@ OpenAPI:
 
 Add app-level rate limiting for:
 - `friends/search`
-- `friends/request`
+- `friends/requests`
 - invite creation + acceptance
 - share public endpoints (token guessing defense)
 

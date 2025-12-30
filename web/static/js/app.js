@@ -523,6 +523,13 @@ const App = {
       case 'friends':
         this.requireAuth(() => this.renderFriends(container));
         break;
+      case 'friend-invite':
+        if (this.user) {
+          this.renderInviteAccept(container, params[0]);
+        } else {
+          this.renderInviteGate(container, params[0]);
+        }
+        break;
       case 'friend-card':
         this.requireAuth(() => this.renderFriendCard(container, params[0]));
         break;
@@ -565,6 +572,27 @@ const App = {
       return;
     }
     callback();
+  },
+
+  storePendingInviteToken(token) {
+    if (!token) return;
+    localStorage.setItem('pendingInviteToken', token);
+  },
+
+  consumePendingInviteToken() {
+    const token = localStorage.getItem('pendingInviteToken');
+    if (!token) return null;
+    localStorage.removeItem('pendingInviteToken');
+    return token;
+  },
+
+  redirectAfterAuth(defaultHash = '#dashboard') {
+    const token = this.consumePendingInviteToken();
+    if (token) {
+      window.location.hash = `#friend-invite/${token}`;
+      return;
+    }
+    window.location.hash = defaultHash;
   },
 
   // Page Renderers
@@ -674,7 +702,7 @@ const App = {
         const response = await API.auth.login(email, password);
         this.user = response.user;
         this.setupNavigation();
-        window.location.hash = '#dashboard';
+        this.redirectAfterAuth('#dashboard');
         this.toast('Welcome back!', 'success');
       } catch (error) {
         errorEl.textContent = error.message;
@@ -741,7 +769,7 @@ const App = {
         const response = await API.auth.register(email, password, username, searchable);
         this.user = response.user;
         this.setupNavigation();
-        window.location.hash = '#create';
+        this.redirectAfterAuth('#create');
         this.toast('Account created! Check your email to verify your account.', 'success');
       } catch (error) {
         errorEl.textContent = error.message;
@@ -814,7 +842,7 @@ const App = {
       const response = await API.auth.verifyMagicLink(token);
       this.user = response.user;
       this.setupNavigation();
-      window.location.hash = '#dashboard';
+      this.redirectAfterAuth('#dashboard');
       this.toast('Welcome back!', 'success');
     } catch (error) {
       window.location.hash = `#login?error=${encodeURIComponent(error.message)}`;
@@ -3961,11 +3989,89 @@ const App = {
   },
 
   // Friends page
+  renderInviteGate(container, token) {
+    if (!token) {
+      container.innerHTML = `
+        <div class="card text-center" style="padding: 3rem;">
+          <h3>Invite link not found</h3>
+          <p class="text-muted mb-lg">This invite link is missing or invalid.</p>
+          <a href="#home" class="btn btn-primary">Go Home</a>
+        </div>
+      `;
+      return;
+    }
+
+    this.storePendingInviteToken(token);
+    container.innerHTML = `
+      <div class="card text-center" style="padding: 3rem;">
+        <h3>Accept Friend Invite</h3>
+        <p class="text-muted mb-lg">Sign in or create an account to accept this invite.</p>
+        <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+          <a href="#login" class="btn btn-primary">Sign In</a>
+          <a href="#register" class="btn btn-secondary">Create Account</a>
+        </div>
+      </div>
+    `;
+  },
+
+  async renderInviteAccept(container, token) {
+    if (!token) {
+      container.innerHTML = `
+        <div class="card text-center" style="padding: 3rem;">
+          <h3>Invite link not found</h3>
+          <p class="text-muted mb-lg">This invite link is missing or invalid.</p>
+          <a href="#friends" class="btn btn-primary">Back to Friends</a>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = `
+      <div class="card text-center" style="padding: 3rem;">
+        <div class="spinner" style="margin: 2rem auto;"></div>
+        <p>Accepting invite...</p>
+      </div>
+    `;
+
+    try {
+      const response = await API.friends.acceptInvite(token);
+      this.toast('Invite accepted!', 'success');
+      container.innerHTML = `
+        <div class="card text-center" style="padding: 3rem;">
+          <h3>You're friends now!</h3>
+          <p class="text-muted mb-lg">You are now connected with ${this.escapeHtml(response.inviter.username)}.</p>
+          <a href="#friends" class="btn btn-primary">Go to Friends</a>
+        </div>
+      `;
+    } catch (error) {
+      container.innerHTML = `
+        <div class="card text-center" style="padding: 3rem;">
+          <h3>Invite Error</h3>
+          <p class="text-muted mb-lg">${this.escapeHtml(error.message)}</p>
+          <a href="#friends" class="btn btn-primary">Back to Friends</a>
+        </div>
+      `;
+    }
+  },
+
   async renderFriends(container) {
     container.innerHTML = `
       <div class="friends-page">
         <div class="friends-header">
           <h2>Friends</h2>
+        </div>
+
+        <div class="card">
+          <h3>Invite Friends</h3>
+          <p class="text-muted" style="margin-bottom: 1rem;">
+            Share a private invite link. Anyone with the link can accept it.
+            You can revoke invites at any time.
+          </p>
+          <div class="search-input-group" style="align-items: center;">
+            <button class="btn btn-primary" id="create-invite-btn">Create Invite Link</button>
+          </div>
+          <div id="invite-result" class="mt-md"></div>
+          <div id="invite-list" class="mt-md"></div>
         </div>
 
         <div class="friends-search card">
@@ -3997,16 +4103,24 @@ const App = {
             <div class="text-center"><div class="spinner"></div></div>
           </div>
         </div>
+
+        <div id="blocked-users" class="card" style="display: none;">
+          <h3>Blocked Users</h3>
+          <div id="blocked-list"></div>
+        </div>
       </div>
     `;
 
     this.setupFriendsEvents();
     await this.loadFriends();
+    await this.loadInvites();
+    await this.loadBlockedUsers();
   },
 
   setupFriendsEvents() {
     const searchInput = document.getElementById('friend-search');
     const searchBtn = document.getElementById('search-btn');
+    const createInviteBtn = document.getElementById('create-invite-btn');
 
     searchBtn.addEventListener('click', () => this.searchFriends());
     searchInput.addEventListener('keypress', (e) => {
@@ -4018,6 +4132,8 @@ const App = {
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => this.searchFriends(), 300);
     });
+
+    createInviteBtn.addEventListener('click', () => this.createFriendInvite());
   },
 
   async searchFriends() {
@@ -4052,6 +4168,101 @@ const App = {
     }
   },
 
+  async createFriendInvite() {
+    const resultEl = document.getElementById('invite-result');
+    resultEl.innerHTML = '<div class="spinner" style="margin: 1rem auto;"></div>';
+
+    try {
+      const response = await API.friends.createInvite(14);
+      const inviteURL = `${window.location.origin}/${response.url}`;
+      resultEl.innerHTML = `
+        <div class="card" style="padding: 1rem;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label">Invite Link</label>
+            <div class="search-input-group">
+              <input type="text" class="form-input" readonly value="${this.escapeHtml(inviteURL)}">
+              <button class="btn btn-secondary" onclick="App.copyInviteLink('${this.escapeHtml(inviteURL)}')">Copy</button>
+            </div>
+          </div>
+        </div>
+      `;
+      await this.loadInvites();
+    } catch (error) {
+      resultEl.innerHTML = `<p class="text-muted">${this.escapeHtml(error.message)}</p>`;
+    }
+  },
+
+  copyInviteLink(url) {
+    navigator.clipboard.writeText(url).then(() => {
+      this.toast('Invite link copied!', 'success');
+    }).catch(() => {
+      this.toast('Could not copy link', 'error');
+    });
+  },
+
+  async loadInvites() {
+    const listEl = document.getElementById('invite-list');
+    if (!listEl) return;
+    try {
+      const response = await API.friends.listInvites();
+      const invites = response.invites || [];
+      if (invites.length === 0) {
+        listEl.innerHTML = '<p class="text-muted">No active invites.</p>';
+        return;
+      }
+
+      listEl.innerHTML = invites.map(invite => `
+        <div class="friend-item">
+          <div>
+            <strong>Invite created</strong>
+            <div class="text-muted">
+              ${invite.expires_at ? `Expires ${new Date(invite.expires_at).toLocaleDateString()}` : 'No expiration'}
+            </div>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="App.revokeInvite('${invite.id}')">Revoke</button>
+        </div>
+      `).join('');
+    } catch (error) {
+      listEl.innerHTML = `<p class="text-muted">${this.escapeHtml(error.message)}</p>`;
+    }
+  },
+
+  async revokeInvite(inviteId) {
+    try {
+      await API.friends.revokeInvite(inviteId);
+      this.toast('Invite revoked', 'success');
+      await this.loadInvites();
+    } catch (error) {
+      this.toast(error.message, 'error');
+    }
+  },
+
+  async loadBlockedUsers() {
+    const blockedEl = document.getElementById('blocked-users');
+    const blockedListEl = document.getElementById('blocked-list');
+    if (!blockedEl || !blockedListEl) return;
+    try {
+      const response = await API.friends.listBlocked();
+      const blocked = response.blocked || [];
+      if (blocked.length === 0) {
+        blockedEl.style.display = 'none';
+        return;
+      }
+      blockedEl.style.display = 'block';
+      blockedListEl.innerHTML = blocked.map(user => `
+        <div class="friend-item">
+          <div>
+            <strong>${this.escapeHtml(user.username)}</strong>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="App.unblockUser('${user.id}', '${this.escapeHtml(user.username)}')">Unblock</button>
+        </div>
+      `).join('');
+    } catch (error) {
+      blockedEl.style.display = 'block';
+      blockedListEl.innerHTML = `<p class="text-muted">${this.escapeHtml(error.message)}</p>`;
+    }
+  },
+
   async sendFriendRequest(friendId) {
     try {
       await API.friends.sendRequest(friendId);
@@ -4078,7 +4289,6 @@ const App = {
           <div class="friend-item">
             <div>
               <strong>${this.escapeHtml(req.requester_username)}</strong>
-              <span class="text-muted">${this.escapeHtml(req.requester_email)}</span>
             </div>
             <div class="friend-actions">
               <button class="btn btn-primary btn-sm" onclick="App.acceptRequest('${req.id}')">Accept</button>
@@ -4099,7 +4309,6 @@ const App = {
           <div class="friend-item">
             <div>
               <strong>${this.escapeHtml(req.friend_username)}</strong>
-              <span class="text-muted">${this.escapeHtml(req.friend_email)}</span>
             </div>
             <button class="btn btn-ghost btn-sm" onclick="App.cancelRequest('${req.id}')">Cancel</button>
           </div>
@@ -4111,17 +4320,22 @@ const App = {
       // Friends list
       const friendsListEl = document.getElementById('friends-list');
       if (friends && friends.length > 0) {
-        friendsListEl.innerHTML = friends.map(friend => `
-          <div class="friend-item">
-            <div>
-              <strong>${this.escapeHtml(friend.friend_username)}</strong>
+        friendsListEl.innerHTML = friends.map(friend => {
+          const otherUserId = friend.user_id === this.user.id ? friend.friend_id : friend.user_id;
+          const friendName = this.escapeHtml(friend.friend_username);
+          return `
+            <div class="friend-item">
+              <div>
+                <strong>${friendName}</strong>
+              </div>
+              <div class="friend-actions">
+                <a href="#friend-card/${friend.id}" class="btn btn-secondary btn-sm">View Card</a>
+                <button class="btn btn-ghost btn-sm" onclick="App.removeFriend('${friend.id}', '${friendName}')">Remove</button>
+                <button class="btn btn-ghost btn-sm" onclick="App.blockUser('${otherUserId}', '${friendName}')">Block</button>
+              </div>
             </div>
-            <div class="friend-actions">
-              <a href="#friend-card/${friend.id}" class="btn btn-secondary btn-sm">View Card</a>
-              <button class="btn btn-ghost btn-sm" onclick="App.removeFriend('${friend.id}', '${this.escapeHtml(friend.friend_username)}')">Remove</button>
-            </div>
-          </div>
-        `).join('');
+          `;
+        }).join('');
       } else {
         friendsListEl.innerHTML = '<p class="text-muted">No friends yet. Search for people to add!</p>';
       }
@@ -4168,6 +4382,33 @@ const App = {
       await API.friends.remove(friendshipId);
       this.toast('Friend removed', 'success');
       await this.loadFriends();
+    } catch (error) {
+      this.toast(error.message, 'error');
+    }
+  },
+
+  async blockUser(userId, friendName) {
+    if (!confirm(`Block ${friendName}? This will remove the friendship and stop future requests.`)) {
+      return;
+    }
+    try {
+      await API.friends.block(userId);
+      this.toast('User blocked', 'success');
+      await this.loadFriends();
+      await this.loadBlockedUsers();
+    } catch (error) {
+      this.toast(error.message, 'error');
+    }
+  },
+
+  async unblockUser(userId, friendName) {
+    if (!confirm(`Unblock ${friendName}? They will be able to send requests again.`)) {
+      return;
+    }
+    try {
+      await API.friends.unblock(userId);
+      this.toast('User unblocked', 'success');
+      await this.loadBlockedUsers();
     } catch (error) {
       this.toast(error.message, 'error');
     }

@@ -30,8 +30,10 @@ func TestFriendService_SearchUsers_ShortQuery(t *testing.T) {
 
 func TestFriendService_SearchUsers_ReturnsRows(t *testing.T) {
 	userID := uuid.New()
+	var gotSQL string
 	db := &fakeDB{
 		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			gotSQL = sql
 			return &fakeRows{rows: [][]any{{userID, "alice"}}}, nil
 		},
 	}
@@ -46,6 +48,9 @@ func TestFriendService_SearchUsers_ReturnsRows(t *testing.T) {
 	}
 	if results[0].ID != userID || results[0].Username != "alice" {
 		t.Fatalf("unexpected result: %+v", results[0])
+	}
+	if !strings.Contains(gotSQL, "user_blocks") {
+		t.Fatalf("expected search to exclude blocked users, got sql: %q", gotSQL)
 	}
 }
 
@@ -93,13 +98,23 @@ func TestFriendService_SendRequest_AlreadyExists(t *testing.T) {
 	db := &fakeDB{
 		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
 			calls++
-			if !strings.Contains(sql, "SELECT EXISTS") || !strings.Contains(sql, "FROM friendships") {
-				t.Fatalf("unexpected existence sql: %q", sql)
+			if calls == 1 {
+				if !strings.Contains(sql, "user_blocks") {
+					t.Fatalf("unexpected block sql: %q", sql)
+				}
+				return rowFromValues(false)
 			}
-			if len(args) != 2 || args[0] != userID || args[1] != friendID {
-				t.Fatalf("unexpected existence args: %v", args)
+			if calls == 2 {
+				if !strings.Contains(sql, "SELECT EXISTS") || !strings.Contains(sql, "FROM friendships") {
+					t.Fatalf("unexpected existence sql: %q", sql)
+				}
+				if len(args) != 2 || args[0] != userID || args[1] != friendID {
+					t.Fatalf("unexpected existence args: %v", args)
+				}
+				return rowFromValues(true)
 			}
-			return rowFromValues(true)
+			t.Fatalf("unexpected query call %d", calls)
+			return rowFromValues(false)
 		},
 	}
 
@@ -108,14 +123,47 @@ func TestFriendService_SendRequest_AlreadyExists(t *testing.T) {
 	if !errors.Is(err, ErrFriendshipExists) {
 		t.Fatalf("expected ErrFriendshipExists, got %v", err)
 	}
+	if calls != 2 {
+		t.Fatalf("expected 2 queries, got %d", calls)
+	}
+}
+
+func TestFriendService_SendRequest_Blocked(t *testing.T) {
+	userID := uuid.New()
+	friendID := uuid.New()
+	calls := 0
+	db := &fakeDB{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			calls++
+			if calls == 1 {
+				if !strings.Contains(sql, "user_blocks") {
+					t.Fatalf("expected block check sql, got %q", sql)
+				}
+				return rowFromValues(true)
+			}
+			t.Fatalf("unexpected extra query: %q", sql)
+			return rowFromValues(false)
+		},
+	}
+
+	svc := NewFriendService(db)
+	_, err := svc.SendRequest(context.Background(), userID, friendID)
+	if !errors.Is(err, ErrUserBlocked) {
+		t.Fatalf("expected ErrUserBlocked, got %v", err)
+	}
 	if calls != 1 {
-		t.Fatalf("expected single existence check, got %d", calls)
+		t.Fatalf("expected 1 query, got %d", calls)
 	}
 }
 
 func TestFriendService_SendRequest_ExistenceError(t *testing.T) {
+	call := 0
 	db := &fakeDB{
 		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			call++
+			if call == 1 {
+				return rowFromValues(false)
+			}
 			return fakeRow{scanFunc: func(dest ...any) error {
 				return errors.New("boom")
 			}}
@@ -138,6 +186,12 @@ func TestFriendService_SendRequest_Success(t *testing.T) {
 		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
 			call++
 			if call == 1 {
+				if !strings.Contains(sql, "user_blocks") {
+					t.Fatalf("unexpected block sql: %q", sql)
+				}
+				return rowFromValues(false)
+			}
+			if call == 2 {
 				if !strings.Contains(sql, "SELECT EXISTS") || !strings.Contains(sql, "FROM friendships") {
 					t.Fatalf("unexpected existence sql: %q", sql)
 				}
@@ -174,6 +228,9 @@ func TestFriendService_SendRequest_InsertError(t *testing.T) {
 		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
 			call++
 			if call == 1 {
+				return rowFromValues(false)
+			}
+			if call == 2 {
 				return rowFromValues(false)
 			}
 			return fakeRow{scanFunc: func(dest ...any) error {
@@ -553,7 +610,7 @@ func TestFriendService_ListFriends_ReturnsRows(t *testing.T) {
 	db := &fakeDB{
 		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
 			return &fakeRows{rows: [][]any{
-				{friendshipID, userID, friendID, models.FriendshipStatusAccepted, time.Now(), "friend", "friend@example.com"},
+				{friendshipID, userID, friendID, models.FriendshipStatusAccepted, time.Now(), "friend"},
 			}}, nil
 		},
 	}
@@ -620,7 +677,7 @@ func TestFriendService_ListPendingRequests_ReturnsRows(t *testing.T) {
 	db := &fakeDB{
 		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
 			return &fakeRows{rows: [][]any{
-				{friendshipID, friendID, userID, models.FriendshipStatusPending, time.Now(), "sender", "sender@example.com"},
+				{friendshipID, friendID, userID, models.FriendshipStatusPending, time.Now(), "sender"},
 			}}, nil
 		},
 	}
@@ -687,7 +744,7 @@ func TestFriendService_ListSentRequests_ReturnsRows(t *testing.T) {
 	db := &fakeDB{
 		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
 			return &fakeRows{rows: [][]any{
-				{friendshipID, userID, friendID, models.FriendshipStatusPending, time.Now(), "friend", "friend@example.com"},
+				{friendshipID, userID, friendID, models.FriendshipStatusPending, time.Now(), "friend"},
 			}}, nil
 		},
 	}

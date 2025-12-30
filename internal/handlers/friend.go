@@ -102,6 +102,10 @@ func (h *FriendHandler) SendRequest(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "Cannot send friend request to yourself")
 		return
 	}
+	if errors.Is(err, services.ErrUserBlocked) {
+		writeError(w, http.StatusForbidden, "Cannot send friend request")
+		return
+	}
 	if errors.Is(err, services.ErrFriendshipExists) {
 		writeError(w, http.StatusConflict, "Friend request already exists")
 		return
@@ -428,11 +432,24 @@ func (h *FriendHandler) GetFriendCards(w http.ResponseWriter, r *http.Request) {
 }
 
 func parseFriendshipID(r *http.Request) (uuid.UUID, error) {
-	path := r.URL.Path
-	parts := strings.Split(path, "/")
-	for i, part := range parts {
-		if part == "friends" && i+1 < len(parts) {
+	if id := r.PathValue("id"); id != "" {
+		return uuid.Parse(id)
+	}
+
+	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+	for i := 0; i+1 < len(parts); i++ {
+		if parts[i] == "requests" {
 			return uuid.Parse(parts[i+1])
+		}
+	}
+	for i := 0; i+1 < len(parts); i++ {
+		if parts[i] == "friends" {
+			switch parts[i+1] {
+			case "requests", "invites", "search":
+				continue
+			default:
+				return uuid.Parse(parts[i+1])
+			}
 		}
 	}
 	return uuid.Nil, errors.New("friendship ID not found in path")

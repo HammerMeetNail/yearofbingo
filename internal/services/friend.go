@@ -19,6 +19,7 @@ var (
 	ErrFriendshipNotPending   = errors.New("friendship is not pending")
 	ErrNotFriendshipRecipient = errors.New("only the recipient can accept/reject")
 	ErrNotFriend              = errors.New("you are not friends with this user")
+	ErrUserBlocked            = errors.New("user is blocked")
 )
 
 type FriendService struct {
@@ -42,6 +43,11 @@ func (s *FriendService) SearchUsers(ctx context.Context, currentUserID uuid.UUID
 		 WHERE id != $1
 		   AND LOWER(username) LIKE $2
 		   AND searchable = true
+		   AND NOT EXISTS (
+		     SELECT 1 FROM user_blocks
+		     WHERE (blocker_id = $1 AND blocked_id = users.id)
+		        OR (blocker_id = users.id AND blocked_id = $1)
+		   )
 		 ORDER BY username
 		 LIMIT 20`,
 		currentUserID, searchPattern,
@@ -72,9 +78,25 @@ func (s *FriendService) SendRequest(ctx context.Context, userID, friendID uuid.U
 		return nil, ErrCannotFriendSelf
 	}
 
+	var isBlocked bool
+	err := s.db.QueryRow(ctx,
+		`SELECT EXISTS(
+			SELECT 1 FROM user_blocks
+			WHERE (blocker_id = $1 AND blocked_id = $2)
+			   OR (blocker_id = $2 AND blocked_id = $1)
+		)`,
+		userID, friendID,
+	).Scan(&isBlocked)
+	if err != nil {
+		return nil, fmt.Errorf("checking block status: %w", err)
+	}
+	if isBlocked {
+		return nil, ErrUserBlocked
+	}
+
 	// Check if friendship already exists in either direction
 	var exists bool
-	err := s.db.QueryRow(ctx,
+	err = s.db.QueryRow(ctx,
 		`SELECT EXISTS(
 			SELECT 1 FROM friendships
 			WHERE (user_id = $1 AND friend_id = $2)
@@ -211,8 +233,7 @@ func (s *FriendService) CancelRequest(ctx context.Context, userID, friendshipID 
 func (s *FriendService) ListFriends(ctx context.Context, userID uuid.UUID) ([]models.FriendWithUser, error) {
 	rows, err := s.db.Query(ctx,
 		`SELECT f.id, f.user_id, f.friend_id, f.status, f.created_at,
-		        CASE WHEN f.user_id = $1 THEN u2.username ELSE u1.username END,
-		        CASE WHEN f.user_id = $1 THEN u2.email ELSE u1.email END
+		        CASE WHEN f.user_id = $1 THEN u2.username ELSE u1.username END
 		 FROM friendships f
 		 JOIN users u1 ON f.user_id = u1.id
 		 JOIN users u2 ON f.friend_id = u2.id
@@ -228,7 +249,7 @@ func (s *FriendService) ListFriends(ctx context.Context, userID uuid.UUID) ([]mo
 	var friends []models.FriendWithUser
 	for rows.Next() {
 		var f models.FriendWithUser
-		if err := rows.Scan(&f.ID, &f.UserID, &f.FriendID, &f.Status, &f.CreatedAt, &f.FriendUsername, &f.FriendEmail); err != nil {
+		if err := rows.Scan(&f.ID, &f.UserID, &f.FriendID, &f.Status, &f.CreatedAt, &f.FriendUsername); err != nil {
 			return nil, fmt.Errorf("scanning friend: %w", err)
 		}
 		friends = append(friends, f)
@@ -243,7 +264,7 @@ func (s *FriendService) ListFriends(ctx context.Context, userID uuid.UUID) ([]mo
 
 func (s *FriendService) ListPendingRequests(ctx context.Context, userID uuid.UUID) ([]models.FriendRequest, error) {
 	rows, err := s.db.Query(ctx,
-		`SELECT f.id, f.user_id, f.friend_id, f.status, f.created_at, u.username, u.email
+		`SELECT f.id, f.user_id, f.friend_id, f.status, f.created_at, u.username
 		 FROM friendships f
 		 JOIN users u ON f.user_id = u.id
 		 WHERE f.friend_id = $1 AND f.status = 'pending'
@@ -258,7 +279,7 @@ func (s *FriendService) ListPendingRequests(ctx context.Context, userID uuid.UUI
 	var requests []models.FriendRequest
 	for rows.Next() {
 		var r models.FriendRequest
-		if err := rows.Scan(&r.ID, &r.UserID, &r.FriendID, &r.Status, &r.CreatedAt, &r.RequesterUsername, &r.RequesterEmail); err != nil {
+		if err := rows.Scan(&r.ID, &r.UserID, &r.FriendID, &r.Status, &r.CreatedAt, &r.RequesterUsername); err != nil {
 			return nil, fmt.Errorf("scanning request: %w", err)
 		}
 		requests = append(requests, r)
@@ -273,7 +294,7 @@ func (s *FriendService) ListPendingRequests(ctx context.Context, userID uuid.UUI
 
 func (s *FriendService) ListSentRequests(ctx context.Context, userID uuid.UUID) ([]models.FriendWithUser, error) {
 	rows, err := s.db.Query(ctx,
-		`SELECT f.id, f.user_id, f.friend_id, f.status, f.created_at, u.username, u.email
+		`SELECT f.id, f.user_id, f.friend_id, f.status, f.created_at, u.username
 		 FROM friendships f
 		 JOIN users u ON f.friend_id = u.id
 		 WHERE f.user_id = $1 AND f.status = 'pending'
@@ -288,7 +309,7 @@ func (s *FriendService) ListSentRequests(ctx context.Context, userID uuid.UUID) 
 	var requests []models.FriendWithUser
 	for rows.Next() {
 		var f models.FriendWithUser
-		if err := rows.Scan(&f.ID, &f.UserID, &f.FriendID, &f.Status, &f.CreatedAt, &f.FriendUsername, &f.FriendEmail); err != nil {
+		if err := rows.Scan(&f.ID, &f.UserID, &f.FriendID, &f.Status, &f.CreatedAt, &f.FriendUsername); err != nil {
 			return nil, fmt.Errorf("scanning request: %w", err)
 		}
 		requests = append(requests, f)
