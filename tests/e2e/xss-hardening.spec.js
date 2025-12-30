@@ -7,6 +7,7 @@ const {
 
 function stubClipboard(page) {
   return page.addInitScript(() => {
+    window.__clipboardStubbed = false;
     try {
       Object.defineProperty(Navigator.prototype, 'clipboard', {
         get() {
@@ -16,8 +17,10 @@ function stubClipboard(page) {
         },
         configurable: true,
       });
+      window.__clipboardStubbed = true;
     } catch (error) {
-      // Ignore clipboard stubbing failures.
+      window.__clipboardStubbed = false;
+      console.warn('Clipboard stub failed', error);
     }
   });
 }
@@ -93,6 +96,8 @@ test('invite copy and revoke actions work with xss usernames', async ({ page }, 
 
   await stubClipboard(page);
   await register(page, user, { searchable: true });
+  const clipboardStubbed = await page.evaluate(() => window.__clipboardStubbed);
+  expect(clipboardStubbed).toBe(true);
   await page.goto('/#friends');
 
   await page.getByRole('button', { name: 'Create Invite Link' }).click();

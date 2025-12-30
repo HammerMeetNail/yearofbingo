@@ -51,7 +51,9 @@ const App = {
       const actionEl = event.target.closest ? event.target.closest('[data-action]') : null;
       if (!actionEl) return;
       if (actionEl.classList.contains('dropdown-item--disabled')) return;
-      if (actionEl.disabled || actionEl.getAttribute('aria-disabled') === 'true') return;
+      const ariaDisabled = actionEl.getAttribute('aria-disabled');
+      const ariaDisabledProp = actionEl.ariaDisabled;
+      if (actionEl.disabled || ariaDisabled === 'true' || ariaDisabledProp === 'true') return;
       const action = actionEl.dataset.action;
       if (!action) return;
       this.handleActionClick(action, actionEl, event);
@@ -2618,8 +2620,13 @@ const App = {
   getActiveSuggestionIndex() {
     const activeTab = document.querySelector('.category-tab--active');
     if (!activeTab) return 0;
-    const index = parseInt(activeTab.dataset.index, 10);
-    return Number.isNaN(index) ? 0 : index;
+    const rawIndex = parseInt(activeTab.dataset.index, 10);
+    const count = Array.isArray(this.suggestions) ? this.suggestions.length : 0;
+    if (count === 0) return 0;
+    let index = Number.isNaN(rawIndex) ? 0 : rawIndex;
+    if (index < 0) index = 0;
+    if (index >= count) index = count - 1;
+    return index;
   },
 
   refreshSuggestionsList() {
@@ -2643,8 +2650,11 @@ const App = {
       if (e.target.classList.contains('category-tab')) {
         document.querySelectorAll('.category-tab').forEach(t => t.classList.remove('category-tab--active'));
         e.target.classList.add('category-tab--active');
-        const index = parseInt(e.target.dataset.index, 10);
-        document.getElementById('suggestions-list').innerHTML = this.renderSuggestions(Number.isNaN(index) ? 0 : index);
+        const rawIndex = parseInt(e.target.dataset.index, 10);
+        const count = Array.isArray(this.suggestions) ? this.suggestions.length : 0;
+        let index = Number.isNaN(rawIndex) ? 0 : rawIndex;
+        if (index < 0 || index >= count) index = 0;
+        document.getElementById('suggestions-list').innerHTML = this.renderSuggestions(index);
       }
     });
 

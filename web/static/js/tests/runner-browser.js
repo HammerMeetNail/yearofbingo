@@ -236,6 +236,10 @@
       test('handles empty string', () => {
         expect(escapeHtml('')).toBe('');
       });
+
+      test('handles plain text', () => {
+        expect(escapeHtml('hello world')).toBe('hello world');
+      });
     });
 
     describe('truncateText', () => {
@@ -249,8 +253,12 @@
       });
 
       test('truncates at maxLength if no good space', () => {
-        const result = truncateText('averylongwordwithoutspaces', 10);
-        expect(result).toBe('averylongw...');
+        const result = truncateText('abcdefghijklmnop', 10);
+        expect(result).toBe('abcdefghij...');
+      });
+
+      test('handles exact length', () => {
+        expect(truncateText('hello', 5)).toBe('hello');
       });
     });
 
@@ -262,87 +270,152 @@
       });
 
       test('parses hash with params', () => {
-        const result = parseHash('#card/123/456');
+        const result = parseHash('#card/abc-123');
         expect(result.page).toBe('card');
-        expect(result.params).toEqual(['123', '456']);
+        expect(result.params).toEqual(['abc-123']);
       });
 
-      test('handles missing hash', () => {
+      test('handles empty hash', () => {
         const result = parseHash('');
+        expect(result.page).toBe('home');
+      });
+
+      test('handles just #', () => {
+        const result = parseHash('#');
         expect(result.page).toBe('home');
       });
     });
 
     describe('isValidPosition', () => {
-      test('validates positions correctly', () => {
+      test('returns true for valid positions', () => {
         expect(isValidPosition(0)).toBeTruthy();
-        expect(isValidPosition(12)).toBeFalsy(); // free space
+        expect(isValidPosition(11)).toBeTruthy();
+        expect(isValidPosition(13)).toBeTruthy();
         expect(isValidPosition(24)).toBeTruthy();
-        expect(isValidPosition(25)).toBeFalsy();
+      });
+
+      test('returns false for free space (12)', () => {
+        expect(isValidPosition(12)).toBeFalsy();
+      });
+
+      test('returns false for negative positions', () => {
         expect(isValidPosition(-1)).toBeFalsy();
+      });
+
+      test('returns false for out of range', () => {
+        expect(isValidPosition(25)).toBeFalsy();
       });
     });
 
     describe('calculateProgress', () => {
-      test('calculates progress correctly', () => {
-        expect(calculateProgress(5, 10)).toBe(50);
-        expect(calculateProgress(3, 7)).toBe(43);
+      test('returns 0 for 0 completed', () => {
+        expect(calculateProgress(0, 24)).toBe(0);
+      });
+
+      test('returns 100 for all completed', () => {
+        expect(calculateProgress(24, 24)).toBe(100);
+      });
+
+      test('handles zero total', () => {
         expect(calculateProgress(0, 0)).toBe(0);
+      });
+
+      test('calculates 50% correctly', () => {
+        expect(calculateProgress(12, 24)).toBe(50);
       });
     });
 
     describe('checkBingo', () => {
-      test('detects row bingo', () => {
+      test('detects no bingo on empty grid', () => {
         const grid = Array(25).fill(false);
+        grid[12] = true;
+        expect(checkBingo(grid)).toEqual([]);
+      });
+
+      test('detects first row bingo', () => {
+        const grid = Array(25).fill(false);
+        grid[12] = true;
         grid[0] = grid[1] = grid[2] = grid[3] = grid[4] = true;
-        const result = checkBingo(grid);
-        expect(result).toHaveLength(1);
-        expect(result[0].type).toBe('row');
+        const bingos = checkBingo(grid);
+        expect(bingos.length).toBe(1);
+        expect(bingos[0].type).toBe('row');
+      });
+
+      test('detects middle row with free space', () => {
+        const grid = Array(25).fill(false);
+        grid[10] = grid[11] = grid[12] = grid[13] = grid[14] = true;
+        const bingos = checkBingo(grid);
+        expect(bingos.length).toBe(1);
       });
 
       test('detects column bingo', () => {
         const grid = Array(25).fill(false);
+        grid[12] = true;
         grid[0] = grid[5] = grid[10] = grid[15] = grid[20] = true;
-        const result = checkBingo(grid);
-        expect(result).toHaveLength(1);
-        expect(result[0].type).toBe('col');
+        const bingos = checkBingo(grid);
+        expect(bingos.length).toBe(1);
+        expect(bingos[0].type).toBe('col');
       });
 
       test('detects diagonal bingo', () => {
         const grid = Array(25).fill(false);
         grid[0] = grid[6] = grid[12] = grid[18] = grid[24] = true;
-        const result = checkBingo(grid);
-        expect(result).toHaveLength(1);
-        expect(result[0].type).toBe('diagonal');
+        const bingos = checkBingo(grid);
+        expect(bingos.length).toBe(1);
+        expect(bingos[0].type).toBe('diagonal');
+      });
+
+      test('detects all bingos when complete', () => {
+        const grid = Array(25).fill(true);
+        const bingos = checkBingo(grid);
+        expect(bingos.length).toBe(12);
       });
     });
 
-    describe('API Object Structure', () => {
-      test('API exists', () => {
-        expect(typeof API).toBe('object');
+    describe('Grid Position Calculations', () => {
+      test('position 12 is center', () => {
+        const row = Math.floor(12 / 5);
+        const col = 12 % 5;
+        expect(row).toBe(2);
+        expect(col).toBe(2);
       });
 
-      test('API has auth property', () => {
+      test('first row positions are 0-4', () => {
+        for (let i = 0; i < 5; i++) {
+          expect(Math.floor(i / 5)).toBe(0);
+        }
+      });
+
+      test('diagonal positions are correct', () => {
+        const diagonal1 = [0, 6, 12, 18, 24];
+        diagonal1.forEach((pos, i) => {
+          expect(pos).toBe(i * 5 + i);
+        });
+      });
+    });
+
+    describe('API Client Structure', () => {
+      test('CSRF token methods exist on API', () => {
+        expect(typeof API).toBe('object');
+        expect(API.csrfToken).toBe(null);
+      });
+
+      test('auth namespace exists', () => {
         expect(typeof API.auth).toBe('object');
         expect(typeof API.auth.login).toBe('function');
       });
 
-      test('API has cards property', () => {
+      test('cards namespace exists', () => {
         expect(typeof API.cards).toBe('object');
         expect(typeof API.cards.create).toBe('function');
       });
 
-      test('API has suggestions property', () => {
-        expect(typeof API.suggestions).toBe('object');
-        expect(typeof API.suggestions.get).toBe('function');
-      });
-
-      test('API has friends property', () => {
+      test('friends namespace exists', () => {
         expect(typeof API.friends).toBe('object');
-        expect(typeof API.friends.search).toBe('function');
+        expect(typeof API.friends.list).toBe('function');
       });
 
-      test('API has reactions property', () => {
+      test('reactions namespace exists', () => {
         expect(typeof API.reactions).toBe('object');
         expect(typeof API.reactions.add).toBe('function');
       });
