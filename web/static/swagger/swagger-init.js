@@ -7,5 +7,7 @@ window.addEventListener('load', () => {
       SwaggerUIStandalonePreset
     ],
     layout: 'StandaloneLayout',
+    // Avoid third-party requests (and CSP violations) to validator.swagger.io.
+    validatorUrl: null,
   });
 });

@@ -115,3 +115,35 @@ test('invite copy and revoke actions work with xss usernames', async ({ page }, 
   await expectToast(page, 'Invite revoked');
   await expect(inviteList).toContainText('No active invites.');
 });
+
+test('xss card titles and goals render as text on editor and dashboard', async ({ page }, testInfo) => {
+  const id = testInfo?.testId ? testInfo.testId.slice(-6) : Date.now().toString().slice(-6);
+  const xssTitle = `xss-title'"<img src=x onerror=alert(1)>-${id}`;
+  const xssGoal = `xss-goal'"<img src=x onerror=alert(1)>-${id}`;
+  const user = buildUser(testInfo, 'xssc');
+
+  await register(page, user, { searchable: true });
+  await page.fill('#card-title', xssTitle);
+  await page.locator('#create-card-form button[type="submit"]').click();
+  await expect(page.locator('#item-input')).toBeVisible();
+
+  const editorTitle = page.locator('h2').filter({ hasText: `xss-title` });
+  await expect(editorTitle).toBeVisible();
+  await expect(editorTitle).toContainText('<img');
+
+  await page.fill('#item-input', xssGoal);
+  await page.click('#add-btn');
+  const goalCell = page
+    .locator('#bingo-grid .bingo-cell:not(.bingo-cell--free)')
+    .filter({ hasText: 'xss-goal' })
+    .first();
+  await expect(goalCell.locator('.bingo-cell-content')).toContainText('<img');
+  await expect(page.locator('#bingo-grid img')).toHaveCount(0);
+
+  await page.goto('/#dashboard');
+  await expect(page.getByRole('heading', { name: 'My Bingo Cards' })).toBeVisible();
+  const card = page.locator('.dashboard-card-preview').filter({ hasText: `xss-title` });
+  await expect(card).toBeVisible();
+  await expect(card.locator('h3')).toContainText('<img');
+  await expect(card.locator('img')).toHaveCount(0);
+});
