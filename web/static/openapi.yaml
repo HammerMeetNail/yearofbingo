@@ -819,6 +819,15 @@ paths:
                   error:
                     type: string
         '403':
+          description: Email verification required for email notifications
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        '403':
           description: Email not verified
           content:
             application/json:

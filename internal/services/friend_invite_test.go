@@ -209,7 +209,9 @@ func TestFriendInviteService_AcceptInvite_Success(t *testing.T) {
 	userID := uuid.New()
 	inviterID := uuid.New()
 	inviteID := uuid.New()
+	friendshipID := uuid.New()
 	var execCalls int
+	var notified bool
 	tx := &fakeTx{
 		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
 			if strings.Contains(sql, "FROM friend_invites") {
@@ -225,7 +227,7 @@ func TestFriendInviteService_AcceptInvite_Success(t *testing.T) {
 				return rowFromValues(false)
 			}
 			if strings.Contains(sql, "INSERT INTO friendships") {
-				return rowFromValues(uuid.New())
+				return rowFromValues(friendshipID)
 			}
 			t.Fatalf("unexpected sql: %q", sql)
 			return rowFromValues()
@@ -244,6 +246,15 @@ func TestFriendInviteService_AcceptInvite_Success(t *testing.T) {
 		},
 	}
 	svc := NewFriendInviteService(db)
+	svc.SetNotificationService(&stubNotificationService{
+		NotifyFriendRequestAcceptedFunc: func(ctx context.Context, recipientID, actorID, gotFriendshipID uuid.UUID) error {
+			notified = true
+			if recipientID != inviterID || actorID != userID || gotFriendshipID != friendshipID {
+				t.Fatalf("unexpected notification args: %v %v %v", recipientID, actorID, gotFriendshipID)
+			}
+			return nil
+		},
+	})
 	inviter, err := svc.AcceptInvite(context.Background(), userID, "token")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -253,6 +264,9 @@ func TestFriendInviteService_AcceptInvite_Success(t *testing.T) {
 	}
 	if execCalls != 1 {
 		t.Fatalf("expected 1 exec call, got %d", execCalls)
+	}
+	if !notified {
+		t.Fatal("expected notification")
 	}
 }
 
