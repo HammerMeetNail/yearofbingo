@@ -2,6 +2,7 @@ const { test, expect } = require('@playwright/test');
 const {
   buildUser,
   register,
+  createCardFromAuthenticatedCreate,
   loginWithCredentials,
   logout,
   expectToast,
@@ -86,4 +87,20 @@ test('email verification banner clears after verifying', async ({ page, request 
 
   await page.goto('/#profile');
   await expect(page.locator('.badge').filter({ hasText: 'Verified' })).toBeVisible();
+});
+
+test('CSRF token rotation does not break authenticated actions', async ({ page }, testInfo) => {
+  const user = buildUser(testInfo, 'csrf');
+  await register(page, user);
+
+  const origin = new URL(page.url()).origin;
+  await page.context().addCookies([
+    {
+      name: 'csrf_token',
+      value: 'rotated-csrf-token',
+      url: origin,
+    },
+  ]);
+
+  await createCardFromAuthenticatedCreate(page);
 });

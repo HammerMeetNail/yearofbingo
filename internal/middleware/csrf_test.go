@@ -53,6 +53,9 @@ func TestCSRFMiddleware_UnsafeMethodsRequireToken(t *testing.T) {
 			if rr.Code != http.StatusForbidden {
 				t.Errorf("%s request without token: expected status 403, got %d", method, rr.Code)
 			}
+			if ct := rr.Result().Header.Get("Content-Type"); ct != "application/json" {
+				t.Errorf("%s request without token: expected Content-Type application/json, got %q", method, ct)
+			}
 		})
 	}
 }
