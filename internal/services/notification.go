@@ -18,6 +18,19 @@ var (
 	ErrEmailNotVerified     = errors.New("email not verified")
 )
 
+var notificationSettingsColumns = map[string]struct{}{
+	"in_app_enabled":                 {},
+	"in_app_friend_request_received": {},
+	"in_app_friend_request_accepted": {},
+	"in_app_friend_bingo":            {},
+	"in_app_friend_new_card":         {},
+	"email_enabled":                  {},
+	"email_friend_request_received":  {},
+	"email_friend_request_accepted":  {},
+	"email_friend_bingo":             {},
+	"email_friend_new_card":          {},
+}
+
 type NotificationListParams struct {
 	Limit      int
 	Before     *time.Time
@@ -65,19 +78,6 @@ func (s *NotificationService) GetSettings(ctx context.Context, userID uuid.UUID)
 }
 
 func (s *NotificationService) UpdateSettings(ctx context.Context, userID uuid.UUID, patch models.NotificationSettingsPatch) (*models.NotificationSettings, error) {
-	allowedColumns := map[string]struct{}{
-		"in_app_enabled":                 {},
-		"in_app_friend_request_received": {},
-		"in_app_friend_request_accepted": {},
-		"in_app_friend_bingo":            {},
-		"in_app_friend_new_card":         {},
-		"email_enabled":                  {},
-		"email_friend_request_received":  {},
-		"email_friend_request_accepted":  {},
-		"email_friend_bingo":             {},
-		"email_friend_new_card":          {},
-	}
-
 	if enablesEmail(patch) {
 		verified, err := s.isEmailVerified(ctx, userID)
 		if err != nil {
@@ -101,7 +101,7 @@ func (s *NotificationService) UpdateSettings(ctx context.Context, userID uuid.UU
 		if value == nil || invalidColumn != "" {
 			return
 		}
-		if _, ok := allowedColumns[column]; !ok {
+		if !isNotificationSettingsColumnAllowed(column) {
 			invalidColumn = column
 			return
 		}
@@ -287,6 +287,9 @@ func (s *NotificationService) notifySingle(ctx context.Context, recipientID, act
 	if err != nil {
 		return err
 	}
+	if !isNotificationSettingsColumnAllowed(inAppCol) || !isNotificationSettingsColumnAllowed(emailCol) {
+		return fmt.Errorf("invalid notification settings column")
+	}
 
 	inAppEnabled := "COALESCE(ns.in_app_enabled, true)"
 	emailEnabled := "COALESCE(ns.email_enabled, false)"
@@ -337,6 +340,9 @@ func (s *NotificationService) notifyFriends(ctx context.Context, actorID, cardID
 	inAppCol, emailCol, err := notificationScenarioColumns(nType)
 	if err != nil {
 		return err
+	}
+	if !isNotificationSettingsColumnAllowed(inAppCol) || !isNotificationSettingsColumnAllowed(emailCol) {
+		return fmt.Errorf("invalid notification settings column")
 	}
 
 	inAppEnabled := "COALESCE(ns.in_app_enabled, true)"
@@ -656,4 +662,9 @@ func templateEscape(value string) string {
 		"'", "&#39;",
 	)
 	return replacer.Replace(value)
+}
+
+func isNotificationSettingsColumnAllowed(column string) bool {
+	_, ok := notificationSettingsColumns[column]
+	return ok
 }
