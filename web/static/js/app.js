@@ -4074,7 +4074,10 @@ const App = {
   handleConflictKeepExisting(existingCardId) {
     AnonymousCard.clear();
     this.isAnonymousMode = false;
+    this.currentCard = null;
+    this.currentView = null;
     this.closeModal();
+    this._allowNextHashRoute = true;
     window.location.hash = `#card/${existingCardId}`;
     this.toast('Keeping your existing card. Anonymous card discarded.', 'success');
   },
