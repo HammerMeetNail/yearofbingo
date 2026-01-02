@@ -1,4 +1,5 @@
 const { expect } = require('@playwright/test');
+const crypto = require('crypto');
 
 const MAILPIT_BASE_URL = process.env.MAILPIT_BASE_URL || 'http://mailpit:8025';
 const MAILPIT_WAIT_TIMEOUT_MS = Number.parseInt(process.env.MAILPIT_WAIT_TIMEOUT_MS || '30000', 10);
@@ -7,7 +8,7 @@ function buildUser(testInfo, prefix, options = {}) {
   const workerIndex = testInfo && Number.isInteger(testInfo.workerIndex) ? testInfo.workerIndex : 0;
   const rawId = testInfo && testInfo.testId
     ? testInfo.testId
-    : `${Date.now().toString(36)}${Math.random().toString(36)}`;
+    : crypto.randomUUID();
   const safeId = String(rawId).toLowerCase().replace(/[^a-z0-9]/g, '');
   const baseId = safeId.slice(-8) || Date.now().toString(36).slice(-8);
   const safePrefix = String(prefix || 'user')
