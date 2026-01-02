@@ -33,12 +33,12 @@ test('full draft warns before leaving without finalizing', async ({ page }, test
   await expect(page.locator('.progress-text')).toContainText('/24 items added');
 
   await page.getByRole('link', { name: 'Friends' }).click();
-  await expect(page.locator('#modal-title')).toHaveText('Card Not Finalized');
+  await expect(page.locator('#modal-title')).toHaveText('Draft Saved');
   await page.getByRole('button', { name: 'Stay' }).click();
   await expect(page.locator('#item-input')).toBeVisible();
 
   await page.getByRole('link', { name: 'Friends' }).click();
-  await expect(page.locator('#modal-title')).toHaveText('Card Not Finalized');
-  await page.getByRole('button', { name: 'Leave Anyway' }).click();
+  await expect(page.locator('#modal-title')).toHaveText('Draft Saved');
+  await page.getByRole('button', { name: 'Leave' }).click();
   await expect(page.getByRole('heading', { name: 'Friends', level: 2 })).toBeVisible();
 });

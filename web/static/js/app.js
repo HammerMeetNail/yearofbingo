@@ -21,17 +21,8 @@ const App = {
     this.setupNavigation();
     this.setupModal();
     this.setupOfflineDetection();
-    this.setupNavigationGuards();
     this._lastHash = window.location.hash || '#home';
     this.route();
-  },
-
-  setupNavigationGuards() {
-    window.addEventListener('beforeunload', (e) => {
-      if (!this.shouldWarnUnfinalizedCardNavigation()) return;
-      e.preventDefault();
-      e.returnValue = '';
-    });
   },
 
   qs(id) {
@@ -372,7 +363,8 @@ const App = {
     if (this.currentCard.is_finalized) return false;
     if (this.currentView !== 'card-editor') return false;
     const itemCount = this.currentCard.items ? this.currentCard.items.length : 0;
-    return itemCount >= 24;
+    const capacity = this.getCardCapacity(this.currentCard);
+    return capacity > 0 && itemCount >= capacity;
   },
 
   handleHashChange() {
@@ -405,14 +397,14 @@ const App = {
   },
 
   showUnfinalizedCardNavigationModal() {
-    this.openModal('Card Not Finalized', `
+    this.openModal('Draft Saved', `
       <div class="finalize-confirm-modal">
         <p style="margin-bottom: 1.5rem;">
-          Your card is full, but it hasn't been finalized yet. Finalizing locks the layout so you can start tracking completion.
+          Your card is saved as a draft. You can leave and come back later without losing your goals. Finalizing locks the layout so you can start tracking completion.
         </p>
         <div style="display: flex; gap: 1rem; justify-content: flex-end; flex-wrap: wrap;">
           <button class="btn btn-ghost" data-action="close-modal">Stay</button>
-          <button class="btn btn-secondary" data-action="proceed-pending-navigation">Leave Anyway</button>
+          <button class="btn btn-secondary" data-action="proceed-pending-navigation">Leave</button>
           <button class="btn btn-primary" data-action="open-finalize-from-navigation-warning">Finalize Card</button>
         </div>
       </div>
@@ -4082,7 +4074,10 @@ const App = {
   handleConflictKeepExisting(existingCardId) {
     AnonymousCard.clear();
     this.isAnonymousMode = false;
+    this.currentCard = null;
+    this.currentView = null;
     this.closeModal();
+    this._allowNextHashRoute = true;
     window.location.hash = `#card/${existingCardId}`;
     this.toast('Keeping your existing card. Anonymous card discarded.', 'success');
   },
@@ -5333,14 +5328,14 @@ const App = {
   },
 
   confirmLogoutUnfinalizedCard() {
-    this.openModal('Card Not Finalized', `
+    this.openModal('Draft Saved', `
       <div class="finalize-confirm-modal">
         <p style="margin-bottom: 1.5rem;">
-          Your card is full, but it hasn't been finalized yet. If you log out now, you might lose track of this card.
+          Your card is saved as a draft. If you log out now, you can pick up where you left off when you sign back in. Finalizing locks the layout so you can start tracking completion.
         </p>
         <div style="display: flex; gap: 1rem; justify-content: flex-end; flex-wrap: wrap;">
           <button class="btn btn-ghost" data-action="close-modal">Stay</button>
-          <button class="btn btn-secondary" data-action="confirmed-logout">Log Out Anyway</button>
+          <button class="btn btn-secondary" data-action="confirmed-logout">Log Out</button>
           <button class="btn btn-primary" data-action="open-finalize-from-navigation-warning">Finalize Card</button>
         </div>
       </div>
