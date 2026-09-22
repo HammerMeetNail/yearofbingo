@@ -118,3 +118,11 @@ Edit-after-finalize is gated by feature flag, not directly by global premium:
   - Feature entitlement override behavior (`is_premium=true` but feature disabled).
 - API contract:
   - `web/static/openapi.yaml` reflects `features` in relevant responses.
+
+## Global AI availability
+
+`FEATURE_AI_ENABLED` defaults to `false` and disables all AI integration, including free wizard/guide generation and premium enhancements. It is read at startup; restart/recreate the app after changing it. `AI_STUB` does not override this switch.
+
+The server registers a JSON 503 response for all six AI routes when disabled, before endpoint authentication, rate limiting, request parsing, or quota consumption (the normal outer security middleware still applies). It does not initialize the AI service. The effective premium AI entitlement is `IsPremium && FEATURE_AI_ENABLED && FEATURE_AI_ENHANCEMENTS_ENABLED`; other premium feature switches are independent.
+
+The HTML shell exposes only the boolean via `data-ai-enabled`, omits the wizard script when disabled, and the UI gates AI entry points. Existing cards, manual editing, curated suggestions, sharing, and billing are unaffected. E2E opts in explicitly to exercise enabled AI with the deterministic stub.

@@ -5,13 +5,10 @@ const {
   createCardFromModal,
   fillCardWithSuggestions,
   finalizeCard,
-  clearMailpit,
 } = require('./helpers');
 const { verifyEmail, enableReminders } = require('./reminder-helpers');
 
 test('scheduled goal reminders can be created', async ({ page, request }, testInfo) => {
-  await clearMailpit(request);
-
   const user = buildUser(testInfo, 'remdue');
   await register(page, user);
 

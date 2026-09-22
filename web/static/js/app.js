@@ -28,6 +28,7 @@ Object.assign(App, {
   isSharedView: false,
   currentShareStatus: null,
   googleOAuthEnabled: false,
+  aiEnabled: false,
   _lastRoutePath: '',
   _pendingNavigationPath: null,
   _addItemInFlight: false,
@@ -35,6 +36,7 @@ Object.assign(App, {
 
   async init() {
     this.googleOAuthEnabled = document.body?.dataset?.googleOauthEnabled === 'true';
+    this.aiEnabled = document.body?.dataset?.aiEnabled === 'true';
     await API.init();
     await this.checkAuth();
     this.setupActionDelegation();
@@ -60,7 +62,7 @@ Object.assign(App, {
     return {
       templates: !!source.templates,
       edit_after_finalize: !!source.edit_after_finalize,
-      ai_enhancements: !!source.ai_enhancements,
+      ai_enhancements: this.aiEnabled === true && !!source.ai_enhancements,
     };
   },
 
@@ -199,19 +201,23 @@ Object.assign(App, {
         this.confirmedLogout();
         break;
       case 'open-ai-wizard': {
+        if (!this.aiEnabled || typeof AIWizard === 'undefined') break;
         const cardId = target.dataset.cardId || null;
         const desiredCount = target.dataset.desiredCount;
         AIWizard.open(cardId || null, desiredCount ? parseInt(desiredCount, 10) : null);
         break;
       }
       case 'open-ai-wizard-from-modal':
+        if (!this.aiEnabled || typeof AIWizard === 'undefined') break;
         this.closeModal();
         AIWizard.open();
         break;
       case 'ai-create-card':
+        if (!this.aiEnabled || typeof AIWizard === 'undefined') break;
         AIWizard.createCard();
         break;
       case 'ai-add-to-card':
+        if (!this.aiEnabled || typeof AIWizard === 'undefined') break;
         AIWizard.addToCard();
         break;
       case 'show-create-card-modal':
@@ -310,6 +316,7 @@ Object.assign(App, {
         if (target.dataset.cardId) this.deleteCard(target.dataset.cardId);
         break;
       case 'show-ai-auth-modal':
+        if (!this.aiEnabled) break;
         this.showAIAuthModal();
         break;
       case 'edit-card-meta':
@@ -372,19 +379,23 @@ Object.assign(App, {
         break;
       }
       case 'ai-refine': {
+        if (!this.aiEnabled) break;
         const position = parseInt(target.dataset.position, 10);
         if (!Number.isNaN(position)) this.handleAIRefine(position);
         break;
       }
       case 'ai-premium-assist': {
+        if (!this.aiEnabled) break;
         const position = parseInt(target.dataset.position, 10);
         if (!Number.isNaN(position)) this.handleAIPremiumAssist(position);
         break;
       }
       case 'ai-fill-empty-premium':
+        if (!this.aiEnabled) break;
         this.fillEmptyWithAI();
         break;
       case 'ai-regenerate-goal': {
+        if (!this.aiEnabled || typeof AIWizard === 'undefined') break;
         const index = parseInt(target.dataset.index, 10);
         if (!Number.isNaN(index)) AIWizard.regenerateGoal(index, target);
         break;
@@ -552,6 +563,7 @@ Object.assign(App, {
         this.handleRolloverCard(event, form);
         break;
       case 'ai-generate':
+        if (!this.aiEnabled || typeof AIWizard === 'undefined') break;
         AIWizard.handleGenerate(event);
         break;
       case 'delete-account':
@@ -855,7 +867,7 @@ Object.assign(App, {
           this.isAnonymousMode = false;
           await this.refreshNotificationCount();
           this.startNotificationPolling();
-          await this.refreshPremiumAIStatus();
+          if (this.aiEnabled) await this.refreshPremiumAIStatus();
         }
         return;
       } catch (error) {
@@ -1904,12 +1916,12 @@ Object.assign(App, {
     ).join('');
 
     this.openModal('Create New Card', `
-      <div class="text-center mb-lg section-divider">
+      ${this.aiEnabled ? `<div class="text-center mb-lg section-divider">
         <button class="btn btn-secondary btn-lg btn-full flex items-center justify-center gap-sm" data-action="open-ai-wizard-from-modal">
             <span>✨</span> Generate with AI Wizard
         </button>
         <p class="text-muted mt-sm text-sm">Let AI create a custom card for you!</p>
-      </div>
+      </div>` : ''}
 
       <form data-action="create-card-modal">
         <div class="form-group">
@@ -2935,9 +2947,9 @@ Object.assign(App, {
         <div>
           <strong class="verification-banner-title">Please verify your email</strong>
           <span class="verification-banner-subtitle"> to enable all features.</span>
-          <div class="text-muted verification-banner-detail">
+          ${this.aiEnabled ? `<div class="text-muted verification-banner-detail">
             AI Goal Wizard: <strong>${remaining}</strong> free generations left before verification is required.
-          </div>
+          </div>` : ''}
         </div>
         <button class="btn btn-secondary btn-sm" data-action="resend-verification">
           Resend verification email
@@ -3546,7 +3558,7 @@ Object.assign(App, {
           <p class="card-subtitle">Set up your bingo card - no account needed to start!</p>
         </div>
 
-        <div class="card ai-upsell">
+        ${this.aiEnabled ? `<div class="card ai-upsell">
           <div class="ai-upsell-content">
             <div class="ai-upsell-icon">🧙</div>
             <div>
@@ -3561,7 +3573,7 @@ Object.assign(App, {
               </div>
             </div>
           </div>
-        </div>
+        </div>` : ''}
 
         <form id="create-card-form" data-action="create-card-anon">
           <div class="form-group">
@@ -3726,12 +3738,12 @@ Object.assign(App, {
 
     container.innerHTML = `
       <div class="card create-card-shell">
-        <div class="text-center mb-lg section-divider">
+        ${this.aiEnabled ? `<div class="text-center mb-lg section-divider">
             <button class="btn btn-secondary btn-lg btn-full flex items-center justify-center gap-sm" data-action="open-ai-wizard">
                 <span>✨</span> Generate with AI Wizard
             </button>
             <p class="text-muted mt-sm text-sm">Let AI create a custom card for you!</p>
-        </div>
+        </div>` : ''}
 
         <div class="card-header text-center">
           <h2 class="card-title">Create New Card</h2>
@@ -3877,7 +3889,7 @@ Object.assign(App, {
             <span class="anonymous-card-banner-icon">💾</span>
             <span>
               This card is saved locally in your browser.
-              <a href="/register" class="anonymous-card-banner-link">Create an account</a> to save it permanently and unlock the AI Goal Wizard.
+              <a href="/register" class="anonymous-card-banner-link">Create an account</a> to save it permanently.
             </span>
           </div>
         </div>
@@ -3954,20 +3966,20 @@ Object.assign(App, {
             <div class="suggestions-header">
               <h3 class="suggestions-title">Suggestions</h3>
               <div class="flex gap-sm flex-wrap">
-                ${isAnon ? `
+                ${this.aiEnabled && isAnon ? `
                   <button class="btn btn-secondary btn-sm" data-action="show-ai-auth-modal" title="Create an account to use AI features">
                     🧙 AI
                   </button>
-                ` : `
+                ` : this.aiEnabled ? `
                   <button class="btn btn-secondary btn-sm" id="ai-btn" data-action="open-ai-wizard" data-card-id="${this.escapeHtml(this.currentCard.id)}" data-desired-count="${capacity - itemCount}" title="Generate goals with AI" ${itemCount >= capacity ? 'disabled' : ''}>
                     🧙 AI
                   </button>
-                  ${this.hasFeature('ai_enhancements') ? `
+                  ${this.aiEnabled && this.hasFeature('ai_enhancements') ? `
                     <button class="btn btn-secondary btn-sm" id="ai-fill-empty-btn" data-action="ai-fill-empty-premium" title="Fill empty squares with Premium AI" ${itemCount >= capacity ? 'disabled' : ''}>
                       ✨ AI Fill
                     </button>
                   ` : ''}
-                `}
+                ` : ''}
                 <button class="btn btn-secondary btn-sm" id="fill-empty-btn" data-action="fill-empty-spaces" ${itemCount >= capacity ? 'disabled' : ''}>
                   ✨ Fill
                 </button>
@@ -4866,7 +4878,7 @@ Object.assign(App, {
     const modalTitle = isEmpty ? 'Add Goal' : 'Edit Goal';
     const aiButtonLabel = isEmpty ? '🧙 Suggest with AI' : '🧙 Refine with AI';
     const aiHintPlaceholder = isEmpty ? 'Theme or constraint (optional)' : 'What should change? (optional)';
-    const canUsePremiumAI = !isEmpty && !this.isAnonymousMode && this.hasFeature('ai_enhancements');
+    const canUsePremiumAI = this.aiEnabled && !isEmpty && !this.isAnonymousMode && this.hasFeature('ai_enhancements');
     const premiumMeter = this.formatPremiumAIStatusLine(this.premiumAIStatus);
     const premiumSection = canUsePremiumAI ? `
         <div class="form-group ai-guide-section">
@@ -4888,7 +4900,7 @@ Object.assign(App, {
         </div>
     ` : '';
 
-    const aiSection = `
+    const aiSection = this.aiEnabled ? `
         <div class="form-group ai-guide-section">
           <label class="form-label">AI Assist</label>
           <input type="text" id="ai-refine-hint" class="form-input form-input--sm" placeholder="${aiHintPlaceholder}" maxlength="500">
@@ -4897,7 +4909,7 @@ Object.assign(App, {
           </button>
           <div id="ai-refine-results" class="ai-guide-results"></div>
         </div>
-    `;
+    ` : '';
     const removeButton = `
           <button type="button" class="btn btn-danger flex-1" data-action="remove-item" data-position="${position}" ${isEmpty ? 'disabled aria-disabled="true" title="No goal to remove"' : ''}>
             Remove
@@ -4964,6 +4976,7 @@ Object.assign(App, {
   },
 
   async handleAIRefine(position) {
+    if (!this.aiEnabled) return;
     if (this.isAnonymousMode || !this.user) {
       this.showAIAuthModal();
       return;
@@ -5026,6 +5039,7 @@ Object.assign(App, {
   },
 
   async handleAIPremiumAssist(position) {
+    if (!this.aiEnabled) return;
     if (this.isAnonymousMode || !this.user) {
       this.showAIAuthModal();
       return;
@@ -5498,6 +5512,7 @@ Object.assign(App, {
   },
 
   async fillEmptyWithAI() {
+    if (!this.aiEnabled) return;
     if (this.isAnonymousMode || !this.user) {
       this.showAIAuthModal();
       return;
@@ -6245,6 +6260,7 @@ Object.assign(App, {
   },
 
   showAIAuthModal() {
+    if (!this.aiEnabled) return;
     this.openModal('Use the AI Goal Wizard', `
       <div class="finalize-auth-modal">
         <p class="mb-lg">
@@ -7454,7 +7470,7 @@ Object.assign(App, {
             <div id="billing-status" class="billing-status">
               <div class="text-center"><div class="spinner spinner--small"></div></div>
             </div>
-            <p id="ai-enhancements-status" class="text-muted text-sm mt-md"></p>
+            ${this.aiEnabled ? '<p id="ai-enhancements-status" class="text-muted text-sm mt-md"></p>' : ''}
           </div>
 
           <div class="card profile-section">
@@ -7611,7 +7627,7 @@ Object.assign(App, {
         badgeSlot.innerHTML = this.isPremium ? '<span class="badge badge-premium">Premium</span>' : '';
       }
       this.renderBillingStatus(statusEl, status);
-      await this.refreshPremiumAIStatus();
+      if (this.aiEnabled) await this.refreshPremiumAIStatus();
     } catch (error) {
       statusEl.innerHTML = '<p class="text-muted" id="billing-error"></p>';
       const errorEl = document.getElementById('billing-error');
@@ -7620,6 +7636,7 @@ Object.assign(App, {
   },
 
   formatPremiumAIStatusLine(status) {
+    if (!this.aiEnabled) return '';
     if (!status || typeof status.remaining !== 'number' || typeof status.limit !== 'number') {
       return '';
     }
@@ -7632,6 +7649,7 @@ Object.assign(App, {
   },
 
   renderPremiumAIStatus() {
+    if (!this.aiEnabled) return;
     const ids = ['ai-enhancements-status', 'premium-ai-status'];
     ids.forEach((id) => {
       const el = document.getElementById(id);
@@ -7649,7 +7667,7 @@ Object.assign(App, {
   },
 
   async refreshPremiumAIStatus() {
-    if (!this.user || !this.hasFeature('ai_enhancements')) {
+    if (!this.aiEnabled || !this.user || !this.hasFeature('ai_enhancements')) {
       this.premiumAIStatus = null;
       this.renderPremiumAIStatus();
       return null;
@@ -7667,6 +7685,7 @@ Object.assign(App, {
   },
 
   applyPremiumAIUsageUpdate(payload) {
+    if (!this.aiEnabled) return;
     if (!payload || typeof payload.enhancements_remaining !== 'number') return;
     if (!this.premiumAIStatus || typeof this.premiumAIStatus.limit !== 'number') {
       this.refreshPremiumAIStatus();
@@ -7853,7 +7872,7 @@ Object.assign(App, {
         <ul class="upgrade-list">
           <li>Premium badge (visible to friends)</li>
           <li>Templates + 1‑click New Year rollover</li>
-          <li>AI Enhancements: 100/month</li>
+          ${this.aiEnabled ? '<li>AI Enhancements: 100/month</li>' : ''}
         </ul>
 
         <h4 class="mt-lg">Premium plan</h4>
@@ -9019,10 +9038,10 @@ Object.assign(App, {
             <h3>Premium badge</h3>
             <p class="text-muted">Show a Premium badge on your profile and to friends.</p>
           </div>
-          <div class="card premium-feature">
+          ${this.aiEnabled ? `<div class="card premium-feature">
             <h3>AI Enhancements</h3>
             <p class="text-muted">Get 100 premium AI actions per month for assist/regenerate/fill features.</p>
-          </div>
+          </div>` : ''}
           <div class="card premium-feature">
             <h3>Templates + rollover</h3>
             <p class="text-muted">Create reusable templates and roll over a card to a new year in one click.</p>
@@ -9034,7 +9053,7 @@ Object.assign(App, {
           <div id="premium-billing-status" class="billing-status">
             <div class="text-center"><div class="spinner spinner--small"></div></div>
           </div>
-          <p id="premium-ai-status" class="text-muted text-sm mt-md"></p>
+          ${this.aiEnabled ? '<p id="premium-ai-status" class="text-muted text-sm mt-md"></p>' : ''}
           <p class="text-muted text-sm mt-md">
             After checkout, you'll return to your Profile while we activate Premium (webhook-driven; may take a moment).
           </p>
@@ -9095,7 +9114,7 @@ Object.assign(App, {
       status = await API.billing.getStatus();
       this.applyBillingStatus(status);
       if (statusEl) this.renderBillingStatus(statusEl, status);
-      await this.refreshPremiumAIStatus();
+      if (this.aiEnabled) await this.refreshPremiumAIStatus();
     } catch (error) {
       if (statusEl) {
         statusEl.innerHTML = '<p class="text-muted" id="premium-billing-error"></p>';

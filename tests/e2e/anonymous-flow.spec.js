@@ -42,5 +42,7 @@ test('anonymous user can create, shuffle, and save a card', async ({ page }, tes
 
   await expect(page.locator('.finalized-card-view')).toBeVisible();
   await expect(page.locator('.progress-text')).toContainText('/8 completed');
+  const menu = page.getByRole('button', { name: 'Toggle menu' });
+  if (await menu.isVisible()) await menu.tap();
   await expect(page.getByRole('link', { name: 'My Cards' })).toBeVisible();
 });

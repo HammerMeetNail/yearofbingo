@@ -27,6 +27,7 @@ services:
       - BILLING_ENABLED=${BILLING_ENABLED:-false}
       - FEATURE_TEMPLATES_ENABLED=${FEATURE_TEMPLATES_ENABLED:-true}
       - FEATURE_EDIT_AFTER_FINALIZE_ENABLED=${FEATURE_EDIT_AFTER_FINALIZE_ENABLED:-true}
+      - FEATURE_AI_ENABLED=${FEATURE_AI_ENABLED:-false}
       - FEATURE_AI_ENHANCEMENTS_ENABLED=${FEATURE_AI_ENHANCEMENTS_ENABLED:-true}
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
@@ -60,7 +61,7 @@ services:
       - POSTGRES_PASSWORD=bingo_dev_password
       - POSTGRES_DB=nye_bingo
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -72,7 +73,7 @@ services:
   redis:
     image: docker.io/library/redis:7-alpine
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:

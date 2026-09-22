@@ -23,6 +23,7 @@ test('support form sends an email to support', async ({ page, request }, testInf
   const email = await waitForEmail(request, {
     to: 'support@yearofbingo.com',
     subject: '[Support] Bug Report',
+    text: user.email,
     after,
   });
   const body = email.Text || email.text || email.HTML || email.html || '';
@@ -45,7 +46,12 @@ test('support form validates required fields and message length', async ({ page,
   await page.getByRole('button', { name: 'Send Message' }).click();
 
   await expectToast(page, 'Message must be at least 10 characters');
-  await expectNoEmail(request, { to: 'support@yearofbingo.com', timeout: 2000, after });
+  await expectNoEmail(request, {
+    to: 'support@yearofbingo.com',
+    text: user.email,
+    timeout: 2000,
+    after,
+  });
 });
 
 test('support form pre-fills email when logged in', async ({ page }, testInfo) => {

@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -229,4 +230,21 @@ func containsAny(s string, needles []string) bool {
 		}
 	}
 	return false
+}
+
+func TestPageHandler_AIEnabled(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		t.Run(strconv.FormatBool(enabled), func(t *testing.T) {
+			handler, err := NewPageHandler("../../web/templates", PageOAuthConfig{AIEnabled: enabled})
+			if err != nil {
+				t.Fatal(err)
+			}
+			rr := httptest.NewRecorder()
+			handler.Index(rr, httptest.NewRequest(http.MethodGet, "/", nil))
+			want := `data-ai-enabled="` + strconv.FormatBool(enabled) + `"`
+			if rr.Code != http.StatusOK || !strings.Contains(rr.Body.String(), want) {
+				t.Fatalf("expected anonymous page with %s, status=%d", want, rr.Code)
+			}
+		})
+	}
 }

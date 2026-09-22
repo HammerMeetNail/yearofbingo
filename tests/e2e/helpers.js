@@ -12,8 +12,9 @@ function buildUser(testInfo, prefix, options = {}) {
   const rawId = testInfo && testInfo.testId
     ? testInfo.testId
     : crypto.randomUUID();
-  const safeId = String(rawId).toLowerCase().replace(/[^a-z0-9]/g, '');
-  const baseId = safeId.slice(-8) || Date.now().toString(36).slice(-8);
+  const aiMode = process.env.FEATURE_AI_ENABLED === 'false' ? 'ai-disabled' : 'ai-enabled';
+  const identity = [testInfo?.project?.name || 'default', rawId, aiMode, testInfo?.repeatEachIndex || 0, testInfo?.retry || 0].join(':');
+  const baseId = crypto.createHash('sha256').update(identity).digest('hex').slice(0, 8);
   const safePrefix = String(prefix || 'user')
     .toLowerCase()
     .replace(/[^a-z0-9]/g, '')
@@ -301,13 +302,6 @@ async function sendFriendRequest(page, username) {
   await waitForSentRequest(page, username);
 }
 
-async function clearMailpit(request) {
-  const response = await request.delete(`${MAILPIT_BASE_URL}/api/v1/messages`);
-  if (!response.ok()) {
-    return;
-  }
-}
-
 async function setOIDCNextUser(request, { email, emailVerified = true, sub } = {}) {
   const payload = {
     email,
@@ -362,13 +356,25 @@ function getMessageBody(message) {
   return message.Text || message.text || message.HTML || message.html || message.Body || message.body || '';
 }
 
-async function waitForEmail(request, { to, subject, timeout = MAILPIT_WAIT_TIMEOUT_MS, after = null } = {}) {
+function getMailpitMessagesURL(to, text) {
+  const terms = [];
+  if (to) terms.push(`to:${JSON.stringify(to)}`);
+  if (text) terms.push(JSON.stringify(text));
+  if (terms.length === 0) return `${MAILPIT_BASE_URL}/api/v1/messages`;
+  // Search before pagination so unrelated parallel tests cannot push this
+  // test's messages out of Mailpit's default first page. A unique text marker
+  // also isolates messages sent to a shared recipient such as support.
+  const query = encodeURIComponent(terms.join(' '));
+  return `${MAILPIT_BASE_URL}/api/v1/search?query=${query}`;
+}
+
+async function waitForEmail(request, { to, subject, text, timeout = MAILPIT_WAIT_TIMEOUT_MS, after = null } = {}) {
   const start = Date.now();
   const lowerTo = String(to || '').toLowerCase();
   const lowerSubject = subject ? String(subject).toLowerCase() : '';
 
   while (Date.now() - start < timeout) {
-    const response = await request.get(`${MAILPIT_BASE_URL}/api/v1/messages`);
+    const response = await request.get(getMailpitMessagesURL(lowerTo, text));
     if (response.ok()) {
       let data = null;
       try {
@@ -384,7 +390,7 @@ async function waitForEmail(request, { to, subject, timeout = MAILPIT_WAIT_TIMEO
           if (!createdAt || createdAt <= after) return false;
         }
         const recipients = getMessageRecipients(message).map((recipient) => recipient.toLowerCase());
-        const matchesRecipient = !lowerTo || recipients.some((recipient) => recipient.includes(lowerTo));
+        const matchesRecipient = !lowerTo || recipients.includes(lowerTo);
         const matchesSubject = !lowerSubject || getMessageSubject(message).toLowerCase().includes(lowerSubject);
         return matchesRecipient && matchesSubject;
       });
@@ -409,13 +415,13 @@ async function waitForEmail(request, { to, subject, timeout = MAILPIT_WAIT_TIMEO
   throw new Error(`Timed out waiting for email${to ? ` to ${to}` : ''}${subject ? ` with subject ${subject}` : ''}`);
 }
 
-async function expectNoEmail(request, { to, subject, timeout = 3000, after = null } = {}) {
+async function expectNoEmail(request, { to, subject, text, timeout = 3000, after = null } = {}) {
   const start = Date.now();
   const lowerTo = String(to || '').toLowerCase();
   const lowerSubject = subject ? String(subject).toLowerCase() : '';
 
   while (Date.now() - start < timeout) {
-    const response = await request.get(`${MAILPIT_BASE_URL}/api/v1/messages`);
+    const response = await request.get(getMailpitMessagesURL(lowerTo, text));
     if (response.ok()) {
       let data = null;
       try {
@@ -431,7 +437,7 @@ async function expectNoEmail(request, { to, subject, timeout = 3000, after = nul
           if (!createdAt || createdAt <= after) return false;
         }
         const recipients = getMessageRecipients(message).map((recipient) => recipient.toLowerCase());
-        const matchesRecipient = !lowerTo || recipients.some((recipient) => recipient.includes(lowerTo));
+        const matchesRecipient = !lowerTo || recipients.includes(lowerTo);
         const matchesSubject = !lowerSubject || getMessageSubject(message).toLowerCase().includes(lowerSubject);
         return matchesRecipient && matchesSubject;
       });
@@ -512,7 +518,6 @@ module.exports = {
   cancelSentFriendRequest,
   waitForFriendInList,
   sendFriendRequest,
-  clearMailpit,
   setOIDCNextUser,
   waitForEmail,
   expectNoEmail,

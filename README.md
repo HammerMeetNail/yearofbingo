@@ -14,7 +14,7 @@ A web application for creating and tracking annual Bingo cards. Create a Bingo c
 - Create and customize annual bingo cards (2x2–5x5, optional FREE space)
 - Edit via drag/drop (desktop) and touch-friendly interactions (mobile)
 - Track progress with optional notes and bingo notifications
-- Suggestions + AI-assisted goal generation (email-verification gated)
+- Suggestions + optional AI-assisted goal generation (disabled by default)
 - Social features: friends, reactions, share links, and privacy controls
 - Archive + export (stats + CSV export)
 - Email auth flows (verification, magic links, reset password)
@@ -108,6 +108,9 @@ make e2e
 # Headed mode / debug helpers
 make e2e-headed
 make e2e-debug
+
+# Desktop browser matrix plus Pixel/iPhone emulation
+make e2e BROWSERS=firefox,chromium,webkit,mobile-chromium,mobile-webkit
 ```
 
 Artifacts:
@@ -115,9 +118,18 @@ Artifacts:
 - Raw results: `test-results/`
 
 Notes:
-- E2E runs with `AI_STUB=1` by default so AI wizard tests are deterministic (no network/API keys).
+- E2E explicitly enables `FEATURE_AI_ENABLED=true` with `AI_STUB=1` so AI wizard tests are deterministic (no network/API keys). To test the disabled application, run `FEATURE_AI_ENABLED=false ./scripts/e2e.sh ai-disabled.spec.js`.
 - Specs live in `tests/e2e/*.spec.js` (with shared helpers in `tests/e2e/helpers.js`).
 - For a current “coverage map” of workflows, see `plans/playwright.md`.
+- Mobile projects cover touch navigation, card editing/completion, AI gating, and drag behavior; see `agent_docs/testing.md` for the native-input and emulation details.
+
+## AI availability
+
+AI is temporarily disabled by default through `FEATURE_AI_ENABLED=false`. This blocks every AI endpoint before provider calls or usage accounting, hides AI controls, and skips loading the wizard script. Manual cards, curated suggestions, sharing, and other Premium features remain available.
+
+To restore AI, set `FEATURE_AI_ENABLED=true` in the deployment environment and recreate/restart the app. Configure `GEMINI_API_KEY` for real generation; `AI_STUB=1` is only for deterministic tests and never overrides the global switch. Premium AI additionally requires `FEATURE_AI_ENHANCEMENTS_ENABLED=true` and the user's Premium entitlement.
+
+Local Compose database, Redis, mail, and mock service ports bind to `127.0.0.1`; containers still communicate over the Compose network. The app remains accessible on port 8080. Container builds exclude `.env` files; supply secrets through the runtime environment.
 
 ## Project Structure
 

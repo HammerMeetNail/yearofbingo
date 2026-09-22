@@ -1,5 +1,6 @@
 const { defineConfig, devices } = require('@playwright/test');
 const os = require('os');
+const path = require('path');
 
 const isCI = !!process.env.CI;
 const isHeadless = process.env.PLAYWRIGHT_HEADLESS !== 'false';
@@ -32,6 +33,8 @@ const workers = (() => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultWorkers;
 })();
 
+const mobileTests = /(?:mobile-flows|ai-disabled|anonymous-flow|authenticated-flow|ai-wizard-create|ai-guide-editor)\.spec\.js$/;
+
 module.exports = defineConfig({
   testDir: 'tests/e2e',
   timeout: testTimeout,
@@ -46,6 +49,7 @@ module.exports = defineConfig({
   reporter: [
     ['list'],
     ['html', { open: 'never', outputFolder: reportDir }],
+    ['json', { outputFile: path.join(outputDir, 'results.json') }],
   ],
   use: {
     baseURL,
@@ -60,15 +64,28 @@ module.exports = defineConfig({
   projects: [
     {
       name: 'firefox',
+      testIgnore: '**/mobile-flows.spec.js',
       use: { ...devices['Desktop Firefox'] },
     },
     {
       name: 'chromium',
+      testIgnore: '**/mobile-flows.spec.js',
       use: { ...devices['Desktop Chrome'] },
     },
     {
       name: 'webkit',
+      testIgnore: '**/mobile-flows.spec.js',
       use: { ...devices['Desktop Safari'] },
+    },
+    {
+      name: 'mobile-chromium',
+      testMatch: mobileTests,
+      use: { ...devices['Pixel 7'] },
+    },
+    {
+      name: 'mobile-webkit',
+      testMatch: mobileTests,
+      use: { ...devices['iPhone 13'] },
     },
   ],
 });

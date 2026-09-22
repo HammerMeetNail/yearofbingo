@@ -3,9 +3,10 @@
 # Usage: ./scripts/e2e.sh [playwright args...]
 #
 # Useful env vars:
-# - PLAYWRIGHT_BROWSERS=firefox[,chromium,webkit]
+# - PLAYWRIGHT_BROWSERS=firefox[,chromium,webkit,mobile-chromium,mobile-webkit]
 # - PLAYWRIGHT_WORKERS=auto|N
 # - PLAYWRIGHT_HEADLESS=true|false
+# - FEATURE_AI_ENABLED=true (default) to test AI flows; set false for disabled smoke tests
 # - AI_STUB=1 (default) for deterministic AI flows
 
 set -euo pipefail
@@ -15,7 +16,7 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 BASE_URL="${BASE_URL:-http://localhost:8080}"
 # Normalize to avoid double-slashes when building URLs.
-PLAYWRIGHT_BASE_URL="${PLAYWRIGHT_BASE_URL:-http://app:8080}"
+PLAYWRIGHT_BASE_URL="${PLAYWRIGHT_BASE_URL:-http://app.test:8080}"
 PLAYWRIGHT_BASE_URL="${PLAYWRIGHT_BASE_URL%/}"
 PLAYWRIGHT_BROWSERS="${PLAYWRIGHT_BROWSERS:-${BROWSERS:-firefox}}"
 PLAYWRIGHT_HEADLESS="${PLAYWRIGHT_HEADLESS:-${HEADLESS:-true}}"
@@ -23,8 +24,11 @@ PLAYWRIGHT_WORKERS="${PLAYWRIGHT_WORKERS:-}"
 PWDEBUG="${PWDEBUG:-}"
 PLAYWRIGHT_OUTPUT_DIR="${PLAYWRIGHT_OUTPUT_DIR:-/test-results}"
 PLAYWRIGHT_REPORT_DIR="${PLAYWRIGHT_REPORT_DIR:-/playwright-report}"
+E2E_RESULTS_DIR="${E2E_RESULTS_DIR:-$PROJECT_DIR/test-results}"
+E2E_REPORT_DIR="${E2E_REPORT_DIR:-$PROJECT_DIR/playwright-report}"
 HEALTH_ATTEMPTS="${E2E_HEALTH_ATTEMPTS:-60}"
 HEALTH_SLEEP="${E2E_HEALTH_SLEEP:-2}"
+FEATURE_AI_ENABLED="${FEATURE_AI_ENABLED:-true}"
 AI_STUB="${AI_STUB:-1}"
 REMINDERS_POLL_INTERVAL="${REMINDERS_POLL_INTERVAL:-1s}"
 GOOGLE_OAUTH_ENABLED="${GOOGLE_OAUTH_ENABLED:-true}"
@@ -90,6 +94,7 @@ COMPOSE_E2E_ARGS=(--env-file "$E2E_ENV_FILE" --profile e2e)
 
 cat >"$E2E_ENV_FILE" <<EOF
 E2E_DEBUG_STRIPE_SIG=1
+FEATURE_AI_ENABLED=$FEATURE_AI_ENABLED
 AI_STUB=$AI_STUB
 REMINDERS_POLL_INTERVAL=$REMINDERS_POLL_INTERVAL
 
@@ -139,6 +144,7 @@ echo "Building assets..."
 
 echo ""
 echo "Starting OIDC mock..."
+export FEATURE_AI_ENABLED
 export AI_STUB
 export REMINDERS_POLL_INTERVAL
 export GOOGLE_OAUTH_ENABLED
@@ -237,7 +243,7 @@ export PWDEBUG
 export PLAYWRIGHT_OUTPUT_DIR
 export PLAYWRIGHT_REPORT_DIR
 
-mkdir -p test-results playwright-report
+mkdir -p "$E2E_RESULTS_DIR" "$E2E_REPORT_DIR"
 
 project_args=()
 IFS=',' read -r -a browsers <<< "$PLAYWRIGHT_BROWSERS"
@@ -265,6 +271,7 @@ podman run --rm \
   -e PWDEBUG="${PWDEBUG:-}" \
   -e PLAYWRIGHT_OUTPUT_DIR="$PLAYWRIGHT_OUTPUT_DIR" \
   -e PLAYWRIGHT_REPORT_DIR="$PLAYWRIGHT_REPORT_DIR" \
+  -e FEATURE_AI_ENABLED="$FEATURE_AI_ENABLED" \
   -e OIDC_BASE_URL="$OIDC_BASE_URL" \
   -e STRIPE_WEBHOOK_SECRET="$STRIPE_WEBHOOK_SECRET" \
   -e STRIPE_MOCK_BASE_URL="$STRIPE_MOCK_PUBLIC_BASE_URL" \
@@ -275,8 +282,8 @@ podman run --rm \
   -e STRIPE_TIP_PRICE_10="$STRIPE_TIP_PRICE_10" \
   -e STRIPE_TIP_PRICE_20="$STRIPE_TIP_PRICE_20" \
   -v "${PROJECT_DIR}:/app:ro" \
-  -v "${PROJECT_DIR}/test-results:/test-results" \
-  -v "${PROJECT_DIR}/playwright-report:/playwright-report" \
+  -v "${E2E_RESULTS_DIR}:/test-results" \
+  -v "${E2E_REPORT_DIR}:/playwright-report" \
   -w /app \
   --shm-size 1gb \
   localhost/yearofbingo_playwright:latest \

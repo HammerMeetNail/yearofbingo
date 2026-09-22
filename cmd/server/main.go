@@ -86,11 +86,7 @@ func run() error {
 	logger.Info("Connected to Redis")
 
 	// Initialize services
-	billing.SetGlobalFeatureSwitches(billing.FeatureEntitlements{
-		Templates:         cfg.Billing.FeatureTemplatesEnabled,
-		EditAfterFinalize: cfg.Billing.FeatureEditAfterFinalizeEnabled,
-		AIEnhancements:    cfg.Billing.FeatureAIEnhancementsEnabled,
-	})
+	billing.SetGlobalFeatureSwitches(configuredFeatureSwitches(cfg))
 
 	dbAdapter := services.NewPoolAdapter(db.Pool)
 	redisAdapter := services.NewRedisAdapter(redisDB.Client)
@@ -109,7 +105,10 @@ func run() error {
 	notificationService := services.NewNotificationService(dbAdapter, emailService, cfg.Email.BaseURL)
 	reminderService := services.NewReminderService(dbAdapter, emailService, cfg.Email.BaseURL)
 	accountService := services.NewAccountService(dbAdapter)
-	aiService := ai.NewService(cfg, dbAdapter)
+	var aiService handlers.AIService
+	if cfg.AI.Enabled {
+		aiService = ai.NewService(cfg, dbAdapter)
+	}
 	billingStore := billing.NewStore(dbAdapter)
 	stripeClient := billing.NewStripeHTTPClientWithAPIBase(cfg.Billing.StripeSecretKey, cfg.Billing.StripeAPIBaseURL)
 	billingService := billing.NewService(cfg.Billing, cfg.Email.BaseURL, billingStore, stripeClient)
@@ -162,6 +161,7 @@ func run() error {
 	accountHandler := handlers.NewAccountHandler(accountService, authService, cfg.Server.Secure)
 	pageHandler, err := handlers.NewPageHandler("web/templates", handlers.PageOAuthConfig{
 		GoogleEnabled: cfg.OAuth.Google.Enabled,
+		AIEnabled:     cfg.AI.Enabled,
 	})
 	if err != nil {
 		return fmt.Errorf("loading templates: %w", err)
@@ -221,6 +221,7 @@ func run() error {
 		aiHandler:           aiHandler,
 		billingHandler:      billingHandler,
 	}, &apiRouteMiddleware{
+		aiEnabled:                  cfg.AI.Enabled,
 		requireRead:                requireRead,
 		requireWrite:               requireWrite,
 		requireSession:             requireSession,
@@ -303,4 +304,12 @@ func run() error {
 	<-done
 	logger.Info("Server stopped")
 	return nil
+}
+
+func configuredFeatureSwitches(cfg *config.Config) billing.FeatureEntitlements {
+	return billing.FeatureEntitlements{
+		Templates:         cfg.Billing.FeatureTemplatesEnabled,
+		EditAfterFinalize: cfg.Billing.FeatureEditAfterFinalizeEnabled,
+		AIEnhancements:    cfg.AI.Enabled && cfg.Billing.FeatureAIEnhancementsEnabled,
+	}
 }

@@ -28,7 +28,7 @@
   <link rel="stylesheet" href="{{.CSSPath}}">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
 </head>
-<body data-google-oauth-enabled="{{.GoogleOAuthEnabled}}">
+<body data-google-oauth-enabled="{{.GoogleOAuthEnabled}}" data-ai-enabled="{{.AIEnabled}}">
   <a href="#main-container" class="skip-link">Skip to main content</a>
 
   <div class="page">
@@ -83,7 +83,7 @@
      <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
      <script src="{{.APIJSPath}}"></script>
      <script src="{{.AnonymousCardJSPath}}"></script>
-     <script src="{{.AIWizardJSPath}}"></script>
+     {{if .AIEnabled}}<script src="{{.AIWizardJSPath}}"></script>{{end}}
      <script src="{{.AppJSPath}}"></script>
    </body>
   </html>

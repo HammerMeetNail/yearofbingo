@@ -20,7 +20,7 @@ Object.assign(App, {
           this.isAnonymousMode = false;
           await this.refreshNotificationCount();
           this.startNotificationPolling();
-          await this.refreshPremiumAIStatus();
+          if (this.aiEnabled) await this.refreshPremiumAIStatus();
         }
         return;
       } catch (error) {
@@ -716,9 +716,9 @@ Object.assign(App, {
         <div>
           <strong class="verification-banner-title">Please verify your email</strong>
           <span class="verification-banner-subtitle"> to enable all features.</span>
-          <div class="text-muted verification-banner-detail">
+          ${this.aiEnabled ? `<div class="text-muted verification-banner-detail">
             AI Goal Wizard: <strong>${remaining}</strong> free generations left before verification is required.
-          </div>
+          </div>` : ''}
         </div>
         <button class="btn btn-secondary btn-sm" data-action="resend-verification">
           Resend verification email
@@ -950,7 +950,7 @@ Object.assign(App, {
             <div id="billing-status" class="billing-status">
               <div class="text-center"><div class="spinner spinner--small"></div></div>
             </div>
-            <p id="ai-enhancements-status" class="text-muted text-sm mt-md"></p>
+            ${this.aiEnabled ? '<p id="ai-enhancements-status" class="text-muted text-sm mt-md"></p>' : ''}
           </div>
 
           <div class="card profile-section">

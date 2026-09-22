@@ -1,10 +1,13 @@
 const { test, expect } = require('@playwright/test');
-const { loginWithCredentials } = require('./helpers');
+const { buildUser, register, loginWithCredentials, createFinalizedCardFromModal } = require('./helpers');
 
 test('seeded cards render with progress and FREE space', async ({ page }) => {
   await loginWithCredentials(page, 'alice@test.com', 'Password1');
 
-  const cardPreview = page.locator('.dashboard-card-preview').first();
+  // scripts/seed.sh creates Alice's completed, unarchived 2025 card.
+  const cardPreview = page.locator('.dashboard-card-preview').filter({
+    has: page.locator('.year-badge', { hasText: /^2025$/ }),
+  });
   await expect(cardPreview).toBeVisible();
 
   await cardPreview.locator('a').first().click();
@@ -40,24 +43,21 @@ test('friend card reactions can be added', async ({ page }) => {
   await expect(page.locator('.reaction-badge').first()).toBeVisible();
 });
 
-test('archived cards show archived view', async ({ page }) => {
-  await loginWithCredentials(page, 'alice@test.com', 'Password1');
+test('archived cards show archived view', async ({ page }, testInfo) => {
+  await register(page, buildUser(testInfo, 'seedarchive'));
+  const title = 'Isolated archive card';
+  await createFinalizedCardFromModal(page, { title, gridSize: 3 });
+  await page.goto('/dashboard');
 
-  const firstCard = page.locator('.dashboard-card-preview').first();
-  await expect(firstCard).toBeVisible();
-  const yearText = await firstCard.locator('.year-badge').innerText();
-  const cardByYear = () => page.locator('.dashboard-card-preview').filter({
-    has: page.locator('.year-badge', { hasText: yearText }),
-  });
-
-  await cardByYear().locator('.dashboard-card-checkbox').check();
-  const selectedText = await page.locator('#selected-count').innerText();
-  expect(selectedText).toMatch(/\d+ selected/);
+  const card = page.locator('.dashboard-card-preview').filter({ hasText: title });
+  await expect(card).toBeVisible();
+  await card.locator('.dashboard-card-checkbox').check();
+  await expect(page.locator('#selected-count')).toHaveText('1 selected');
   await page.getByRole('button', { name: 'Actions' }).click();
-  await page.locator('.dropdown-menu .dropdown-item').filter({ hasText: /^\s*Archive\s*$/ }).click();
-  await expect(cardByYear().locator('.archive-badge')).toBeVisible();
+  await page.locator('.dropdown-menu--visible .dropdown-item').filter({ hasText: /^\s*Archive\s*$/ }).click();
+  await expect(card.locator('.archive-badge')).toBeVisible();
 
-  await cardByYear().locator('a').first().click();
+  await card.locator('a').first().click();
   await expect(page.locator('.bingo-grid--archive')).toBeVisible();
   await expect(page.locator('.archive-badge')).toBeVisible();
 });

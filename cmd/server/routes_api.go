@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/HammerMeetNail/yearofbingo/internal/handlers"
@@ -29,6 +30,7 @@ type apiRouteHandlers struct {
 }
 
 type apiRouteMiddleware struct {
+	aiEnabled      bool
 	requireRead    func(http.Handler) http.Handler
 	requireWrite   func(http.Handler) http.Handler
 	requireSession func(http.Handler) http.Handler
@@ -70,6 +72,7 @@ func registerAPIRoutes(mux *http.ServeMux, handlers *apiRouteHandlers, middlewar
 	registerAIRoutes(
 		mux,
 		handlers.aiHandler,
+		middleware.aiEnabled,
 		middleware.requireSession,
 		middleware.aiRateLimiter,
 		middleware.aiPremiumRateLimiter,
@@ -272,10 +275,22 @@ func registerSupportRoutes(
 func registerAIRoutes(
 	mux *http.ServeMux,
 	aiHandler *handlers.AIHandler,
+	enabled bool,
 	requireSession func(http.Handler) http.Handler,
 	aiRateLimiter *middleware.RateLimiter,
 	aiPremiumRateLimiter *middleware.RateLimiter,
 ) {
+	if !enabled {
+		disabled := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "AI features are currently disabled"})
+		})
+		for _, pattern := range []string{"POST /api/ai/generate", "POST /api/ai/guide", "GET /api/ai/premium/status", "POST /api/ai/assist", "POST /api/ai/regenerate", "POST /api/ai/fill-empty"} {
+			mux.Handle(pattern, disabled)
+		}
+		return
+	}
 	mux.Handle("POST /api/ai/generate", requireSession(aiRateLimiter.Middleware(http.HandlerFunc(aiHandler.Generate))))
 	mux.Handle("POST /api/ai/guide", requireSession(aiRateLimiter.Middleware(http.HandlerFunc(aiHandler.Guide))))
 	mux.Handle("GET /api/ai/premium/status", requireSession(http.HandlerFunc(aiHandler.PremiumStatus)))

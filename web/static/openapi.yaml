@@ -10,6 +10,7 @@ info:
     Example: `Authorization: Bearer yob_abc123...`
 
     Note: Some endpoints (e.g. AI generation) require an authenticated browser session cookie and do not accept API tokens.
+    All /ai endpoints return 503 when FEATURE_AI_ENABLED is false (the default), without consuming AI quota.
   version: 1.8.5
 servers:
   - url: /api
@@ -33,6 +34,7 @@ components:
           type: boolean
         ai_enhancements:
           type: boolean
+          description: Requires Premium and both FEATURE_AI_ENABLED and FEATURE_AI_ENHANCEMENTS_ENABLED.
     BillingStatus:
       type: object
       properties:
@@ -3019,7 +3021,7 @@ paths:
                   error:
                     type: string
         '503':
-          description: AI provider unavailable
+          description: AI globally disabled (FEATURE_AI_ENABLED=false) or provider unavailable
           content:
             application/json:
               schema:
@@ -3061,6 +3063,15 @@ paths:
                     type: string
         '403':
           description: Premium required
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        '503':
+          description: AI globally disabled (FEATURE_AI_ENABLED=false)
           content:
             application/json:
               schema:
@@ -3153,7 +3164,7 @@ paths:
                     type: string
                     format: date-time
         '503':
-          description: AI provider unavailable
+          description: AI globally disabled (FEATURE_AI_ENABLED=false) or provider unavailable
           content:
             application/json:
               schema:
@@ -3260,7 +3271,7 @@ paths:
                     type: string
                     format: date-time
         '503':
-          description: AI provider unavailable
+          description: AI globally disabled (FEATURE_AI_ENABLED=false) or provider unavailable
           content:
             application/json:
               schema:
@@ -3361,7 +3372,7 @@ paths:
                     type: string
                     format: date-time
         '503':
-          description: AI provider unavailable
+          description: AI globally disabled (FEATURE_AI_ENABLED=false) or provider unavailable
           content:
             application/json:
               schema:
@@ -3465,7 +3476,7 @@ paths:
                   error:
                     type: string
         '503':
-          description: AI provider unavailable
+          description: AI globally disabled (FEATURE_AI_ENABLED=false) or provider unavailable
           content:
             application/json:
               schema:

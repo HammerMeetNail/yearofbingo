@@ -22,7 +22,7 @@ Object.assign(App, {
     return {
       templates: !!source.templates,
       edit_after_finalize: !!source.edit_after_finalize,
-      ai_enhancements: !!source.ai_enhancements,
+      ai_enhancements: this.aiEnabled === true && !!source.ai_enhancements,
     };
   },
 

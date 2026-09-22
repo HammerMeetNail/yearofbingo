@@ -272,6 +272,10 @@ describe('Premium navigation + page wiring', () => {
 
   function loadBrowserApp(options = {}) {
     const doc = new MockDocument();
+    doc.body.dataset = {
+      googleOauthEnabled: 'false',
+      aiEnabled: options.aiEnabled === true ? 'true' : 'false',
+    };
     doc._byID.set('nav', new MockElement(doc, { id: 'nav', tagName: 'NAV' }));
     doc._byID.set('main-container', new MockElement(doc, { id: 'main-container' }));
 
@@ -290,6 +294,20 @@ describe('Premium navigation + page wiring', () => {
       history: { replaceState() {} },
     };
 
+    let aiPremiumStatusCalls = 0;
+    const api = {
+      init: async () => {},
+      auth: { me: async () => ({ user: null, features: {} }) },
+      cards: { getCategories: async () => ({ categories: [] }) },
+      billing: { getStatus: async () => ({ billing_enabled: false, features: {} }) },
+      ai: {
+        getPremiumStatus: async () => {
+          aiPremiumStatusCalls += 1;
+          return { remaining: 100, limit: 100 };
+        },
+      },
+    };
+
     const context = {
       console,
       window: win,
@@ -304,6 +322,7 @@ describe('Premium navigation + page wiring', () => {
       clearTimeout,
       setInterval,
       clearInterval,
+      API: api,
     };
 
     vm.createContext(context);
@@ -337,11 +356,12 @@ describe('Premium navigation + page wiring', () => {
     if (!AppForTests) {
       throw new Error('Failed to load App from app.js');
     }
+    AppForTests.aiEnabled = options.aiEnabled === true;
 
     // Prevent any incidental work in route()/meta helpers.
     AppForTests.setRobotsMeta = () => {};
 
-    return { App: AppForTests, document: doc, window: win };
+    return { App: AppForTests, document: doc, window: win, API: api, getAIPremiumStatusCalls: () => aiPremiumStatusCalls };
   }
 
   globalThis.__loadBrowserAppForTests = loadBrowserApp;
@@ -525,6 +545,45 @@ describe('Premium navigation + page wiring', () => {
     App.openPremiumCodeModal({ errorMessage: 'Invalid code' });
     expect(modalHTML.includes('id="premium-code-error"')).toBe(true);
   });
+
+  test('AI is disabled by default and premium status makes no AI request', async () => {
+    const { App, API, getAIPremiumStatusCalls } = loadBrowserApp();
+    App.user = { username: 'alice' };
+    App.entitlements = { ai_enhancements: true };
+    await App.refreshPremiumAIStatus();
+    expect(App.aiEnabled).toBe(false);
+    expect(App.normalizeEntitlements({ ai_enhancements: true }).ai_enhancements).toBe(false);
+    expect(!!API).toBe(true);
+    expect(getAIPremiumStatusCalls()).toBe(0);
+  });
+
+  test('AI methods make premium status requests only when explicitly enabled', async () => {
+    const { App, getAIPremiumStatusCalls } = loadBrowserApp({ aiEnabled: true });
+    App.user = { username: 'alice' };
+    App.entitlements = { ai_enhancements: true };
+    await App.refreshPremiumAIStatus();
+    expect(App.aiEnabled).toBe(true);
+    expect(getAIPremiumStatusCalls()).toBe(1);
+  });
+
+  test('disabled AI hides authenticated create entry points', async () => {
+    const { App, document } = loadBrowserApp({ loadSplitModules: true });
+    App.user = { username: 'alice' };
+    App.aiEnabled = false;
+    const container = document.getElementById('main-container');
+    await App.renderAuthenticatedCreate(container);
+    expect(container.innerHTML.includes('Generate with AI')).toBe(false);
+    expect(container.innerHTML.includes('data-action="open-ai-wizard"')).toBe(false);
+  });
+
+  test('enabled AI preserves authenticated create entry points', async () => {
+    const { App, document } = loadBrowserApp({ loadSplitModules: true, aiEnabled: true });
+    App.user = { username: 'alice' };
+    const container = document.getElementById('main-container');
+    await App.renderAuthenticatedCreate(container);
+    expect(container.innerHTML.includes('Generate with AI')).toBe(true);
+    expect(container.innerHTML.includes('data-action="open-ai-wizard"')).toBe(true);
+  });
 });
 
 describe('Module boundaries + action dispatch', () => {
@@ -684,6 +743,7 @@ describe('Module boundaries + action dispatch', () => {
     App.fillEmptyWithAI = () => { aiFillCount += 1; };
     App.sendFriendRequest = (userID) => { friendUserID = userID; };
     App.showTemplateModal = (templateID) => { viewedTemplateID = templateID; };
+    App.aiEnabled = true;
 
     App.handleActionClick('open-premium-code-modal', { dataset: {} }, {});
     App.handleActionClick('show-create-template-modal', { dataset: {} }, {});
@@ -696,6 +756,15 @@ describe('Module boundaries + action dispatch', () => {
     expect(aiFillCount).toBe(1);
     expect(friendUserID).toBe('friend-123');
     expect(viewedTemplateID).toBe('tpl-007');
+  });
+
+  test('disabled AI action dispatch is a no-op', () => {
+    const { App } = globalThis.__loadBrowserAppForTests();
+    App.aiEnabled = false;
+    let aiFillCount = 0;
+    App.fillEmptyWithAI = () => { aiFillCount += 1; };
+    App.handleActionClick('ai-fill-empty-premium', { dataset: {} }, {});
+    expect(aiFillCount).toBe(0);
   });
 
   test('handleActionSubmit forwards template + item edit forms', () => {

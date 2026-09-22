@@ -7,7 +7,14 @@ const {
 async function verifyEmail(page, request, user) {
   await page.goto('/profile');
   const afterVerify = Date.now();
-  await page.getByRole('button', { name: 'Resend verification email' }).click();
+  const [resendResponse] = await Promise.all([
+    page.waitForResponse((response) => (
+      new URL(response.url()).pathname === '/api/auth/resend-verification'
+        && response.request().method() === 'POST'
+    )),
+    page.getByRole('button', { name: 'Resend verification email' }).click(),
+  ]);
+  expect(resendResponse.ok(), 'Verification email resend should succeed').toBeTruthy();
 
   const verifyMessage = await waitForEmail(request, {
     to: user.email,

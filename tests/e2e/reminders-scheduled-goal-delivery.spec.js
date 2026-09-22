@@ -6,13 +6,10 @@ const {
   fillCardWithSuggestions,
   finalizeCard,
   waitForEmail,
-  clearMailpit,
 } = require('./helpers');
 const { verifyEmail, enableReminders } = require('./reminder-helpers');
 
 test('scheduled goal reminders are delivered by the background runner', async ({ page, request }, testInfo) => {
-  await clearMailpit(request);
-
   const user = buildUser(testInfo, 'remdue');
   await register(page, user);
 

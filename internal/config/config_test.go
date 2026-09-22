@@ -11,7 +11,7 @@ func TestLoad_Defaults(t *testing.T) {
 		"SERVER_HOST", "SERVER_PORT", "SERVER_SECURE", "DEBUG", "DEBUG_LOG_MAX_CHARS", "TRUSTED_PROXY_CIDRS",
 		"DB_HOST", "DB_PORT", "DB_USER", "DB_PASSWORD", "DB_NAME", "DB_SSLMODE",
 		"REDIS_HOST", "REDIS_PORT", "REDIS_PASSWORD", "REDIS_DB",
-		"AI_STUB", "GEMINI_API_KEY", "GEMINI_MODEL", "GEMINI_THINKING_LEVEL", "GEMINI_THINKING_BUDGET", "GEMINI_TEMPERATURE", "GEMINI_MAX_OUTPUT_TOKENS",
+		"FEATURE_AI_ENABLED", "AI_STUB", "GEMINI_API_KEY", "GEMINI_MODEL", "GEMINI_THINKING_LEVEL", "GEMINI_THINKING_BUDGET", "GEMINI_TEMPERATURE", "GEMINI_MAX_OUTPUT_TOKENS",
 		"AI_PREMIUM_ENHANCEMENTS_PER_MONTH", "AI_PREMIUM_ENDPOINT_RATE_LIMIT",
 		"OAUTH_ALLOWED_PROVIDERS", "GOOGLE_OAUTH_ENABLED", "GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_OAUTH_REDIRECT_URL", "GOOGLE_OIDC_ISSUER_URL", "GOOGLE_OIDC_SCOPES",
 		"BILLING_ENABLED", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET",
@@ -550,6 +550,28 @@ func TestGetEnvBool(t *testing.T) {
 			got := getEnvBool(tt.key, tt.defaultValue)
 			if got != tt.expected {
 				t.Errorf("expected %v, got %v", tt.expected, got)
+			}
+		})
+	}
+}
+
+func TestLoad_AIEnabled(t *testing.T) {
+	for _, tc := range []struct {
+		value string
+		want  bool
+	}{{"", false}, {"false", false}, {"true", true}, {"invalid", false}} {
+		t.Run(tc.value, func(t *testing.T) {
+			t.Setenv("FEATURE_AI_ENABLED", tc.value)
+			t.Setenv("AI_STUB", "1")
+			cfg, err := Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.AI.Enabled != tc.want {
+				t.Fatalf("AI.Enabled = %t, want %t", cfg.AI.Enabled, tc.want)
+			}
+			if !cfg.AI.Stub {
+				t.Fatal("stub should remain independently configured")
 			}
 		})
 	}

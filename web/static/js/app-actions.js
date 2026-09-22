@@ -102,19 +102,23 @@ Object.assign(App, {
         this.confirmedLogout();
         break;
       case 'open-ai-wizard': {
+        if (!this.aiEnabled || typeof AIWizard === 'undefined') break;
         const cardId = target.dataset.cardId || null;
         const desiredCount = target.dataset.desiredCount;
         AIWizard.open(cardId || null, desiredCount ? parseInt(desiredCount, 10) : null);
         break;
       }
       case 'open-ai-wizard-from-modal':
+        if (!this.aiEnabled || typeof AIWizard === 'undefined') break;
         this.closeModal();
         AIWizard.open();
         break;
       case 'ai-create-card':
+        if (!this.aiEnabled || typeof AIWizard === 'undefined') break;
         AIWizard.createCard();
         break;
       case 'ai-add-to-card':
+        if (!this.aiEnabled || typeof AIWizard === 'undefined') break;
         AIWizard.addToCard();
         break;
       case 'show-create-card-modal':
@@ -213,6 +217,7 @@ Object.assign(App, {
         if (target.dataset.cardId) this.deleteCard(target.dataset.cardId);
         break;
       case 'show-ai-auth-modal':
+        if (!this.aiEnabled) break;
         this.showAIAuthModal();
         break;
       case 'edit-card-meta':
@@ -275,19 +280,23 @@ Object.assign(App, {
         break;
       }
       case 'ai-refine': {
+        if (!this.aiEnabled) break;
         const position = parseInt(target.dataset.position, 10);
         if (!Number.isNaN(position)) this.handleAIRefine(position);
         break;
       }
       case 'ai-premium-assist': {
+        if (!this.aiEnabled) break;
         const position = parseInt(target.dataset.position, 10);
         if (!Number.isNaN(position)) this.handleAIPremiumAssist(position);
         break;
       }
       case 'ai-fill-empty-premium':
+        if (!this.aiEnabled) break;
         this.fillEmptyWithAI();
         break;
       case 'ai-regenerate-goal': {
+        if (!this.aiEnabled || typeof AIWizard === 'undefined') break;
         const index = parseInt(target.dataset.index, 10);
         if (!Number.isNaN(index)) AIWizard.regenerateGoal(index, target);
         break;
@@ -455,6 +464,7 @@ Object.assign(App, {
         this.handleRolloverCard(event, form);
         break;
       case 'ai-generate':
+        if (!this.aiEnabled || typeof AIWizard === 'undefined') break;
         AIWizard.handleGenerate(event);
         break;
       case 'delete-account':

@@ -44,6 +44,7 @@ type RedisConfig struct {
 }
 
 type AIConfig struct {
+	Enabled                     bool
 	GeminiAPIKey                string
 	Stub                        bool
 	GeminiModel                 string
@@ -150,6 +151,7 @@ func Load() (*Config, error) {
 			GeminiMaxOutputTokens:       getEnvInt("GEMINI_MAX_OUTPUT_TOKENS", 4096),
 			PremiumEnhancementsPerMonth: getEnvInt("AI_PREMIUM_ENHANCEMENTS_PER_MONTH", 100),
 			PremiumEndpointRateLimit:    getEnvInt("AI_PREMIUM_ENDPOINT_RATE_LIMIT", 60),
+			Enabled:                     getEnvBool("FEATURE_AI_ENABLED", false),
 			Stub:                        getEnvBool("AI_STUB", false),
 		},
 		OAuth: OAuthConfig{

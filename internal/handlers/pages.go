@@ -20,6 +20,7 @@ type PageHandler struct {
 
 type PageOAuthConfig struct {
 	GoogleEnabled bool
+	AIEnabled     bool
 }
 
 func NewPageHandler(templatesDir string, oauth PageOAuthConfig) (*PageHandler, error) {
@@ -54,6 +55,7 @@ type PageData struct {
 	AppJSPath           string
 	AIWizardJSPath      string
 	GoogleOAuthEnabled  bool
+	AIEnabled           bool
 }
 
 func (h *PageHandler) Index(w http.ResponseWriter, r *http.Request) {
@@ -68,6 +70,7 @@ func (h *PageHandler) Index(w http.ResponseWriter, r *http.Request) {
 		AppJSPath:           h.manifest.GetAppJS(),
 		AIWizardJSPath:      h.manifest.GetAIWizardJS(),
 		GoogleOAuthEnabled:  h.oauth.GoogleEnabled,
+		AIEnabled:           h.oauth.AIEnabled,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

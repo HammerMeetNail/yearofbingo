@@ -1558,9 +1558,22 @@ progress.progress-bar::-moz-progress-bar {
   }
 
   /* Mobile navigation */
+  .header-content {
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+  }
+
+  .logo {
+    flex-shrink: 0;
+  }
+
   .nav {
     position: relative;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     gap: var(--spacing-sm);
+    max-width: 100%;
+    margin-left: auto;
   }
 
   .nav-hamburger {

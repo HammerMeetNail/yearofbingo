@@ -17,6 +17,7 @@ test('AI wizard append mode fills only open cells and preserves existing goals',
   for (const goal of manualGoals) {
     await page.fill('#item-input', goal);
     await page.click('#add-btn');
+    await expect(page.locator('#bingo-grid').getByText(goal, { exact: true })).toBeVisible();
   }
 
   await expect(page.locator('.bingo-cell[data-item-id]:not(.bingo-cell--free)')).toHaveCount(3);
@@ -61,6 +62,7 @@ test('AI wizard append mode respects no-FREE card capacity', async ({ page }, te
   for (const goal of manualGoals) {
     await page.fill('#item-input', goal);
     await page.click('#add-btn');
+    await expect(page.locator('#bingo-grid').getByText(goal, { exact: true })).toBeVisible();
   }
 
   await expect(page.locator('.bingo-cell[data-item-id]')).toHaveCount(2);

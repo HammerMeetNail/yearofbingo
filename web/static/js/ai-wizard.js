@@ -10,7 +10,7 @@ const AIWizard = {
   },
 
   renderPremiumEnhancementsLine() {
-    if (!App.user || !App.hasFeature('ai_enhancements')) return '';
+    if (!App.aiEnabled || !App.user || !App.hasFeature('ai_enhancements')) return '';
     const line = App.formatPremiumAIStatusLine(App.premiumAIStatus);
     if (!line) return '';
     return `<div class="text-muted mb-md text-sm">${App.escapeHtml(line)}</div>`;
@@ -92,6 +92,7 @@ const AIWizard = {
   },
 
   open(targetCardId = null, desiredCount = null) {
+    if (!App.aiEnabled) return;
     if (this.isVerificationRequiredForAI()) {
       this.showVerificationRequiredModal();
       return;
@@ -270,6 +271,7 @@ const AIWizard = {
 
   async handleGenerate(event) {
     event.preventDefault();
+    if (!App.aiEnabled) return;
     if (this._busy) return;
     if (!App.user) {
       App.toast('Please log in to use AI features.', 'error');
@@ -368,6 +370,7 @@ const AIWizard = {
 	  },
 
   async regenerateGoal(index, triggerEl = null) {
+    if (!App.aiEnabled) return;
     if (this._busy) return;
     if (!App.user) {
       App.toast('Please log in to use AI features.', 'error');
@@ -461,6 +464,7 @@ const AIWizard = {
   },
 
   async createCard() {
+    if (!App.aiEnabled) return;
     if (this._busy) return;
     const year = new Date().getFullYear();
     const focus = (this.state.inputs.focus || '').trim().replace(/\s+/g, ' ').slice(0, 50);
@@ -497,6 +501,7 @@ const AIWizard = {
   },
 
   async addToCard() {
+    if (!App.aiEnabled) return;
     if (!this.state.targetCardId) return;
     if (this._busy) return;
 

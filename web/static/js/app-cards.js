@@ -37,12 +37,12 @@ Object.assign(App, {
     ).join('');
 
     this.openModal('Create New Card', `
-      <div class="text-center mb-lg section-divider">
+      ${this.aiEnabled ? `<div class="text-center mb-lg section-divider">
         <button class="btn btn-secondary btn-lg btn-full flex items-center justify-center gap-sm" data-action="open-ai-wizard-from-modal">
             <span>✨</span> Generate with AI Wizard
         </button>
         <p class="text-muted mt-sm text-sm">Let AI create a custom card for you!</p>
-      </div>
+      </div>` : ''}
 
       <form data-action="create-card-modal">
         <div class="form-group">
@@ -662,7 +662,7 @@ Object.assign(App, {
           <p class="card-subtitle">Set up your bingo card - no account needed to start!</p>
         </div>
 
-        <div class="card ai-upsell">
+        ${this.aiEnabled ? `<div class="card ai-upsell">
           <div class="ai-upsell-content">
             <div class="ai-upsell-icon">🧙</div>
             <div>
@@ -677,7 +677,7 @@ Object.assign(App, {
               </div>
             </div>
           </div>
-        </div>
+        </div>` : ''}
 
         <form id="create-card-form" data-action="create-card-anon">
           <div class="form-group">
@@ -842,12 +842,12 @@ Object.assign(App, {
 
     container.innerHTML = `
       <div class="card create-card-shell">
-        <div class="text-center mb-lg section-divider">
+        ${this.aiEnabled ? `<div class="text-center mb-lg section-divider">
             <button class="btn btn-secondary btn-lg btn-full flex items-center justify-center gap-sm" data-action="open-ai-wizard">
                 <span>✨</span> Generate with AI Wizard
             </button>
             <p class="text-muted mt-sm text-sm">Let AI create a custom card for you!</p>
-        </div>
+        </div>` : ''}
 
         <div class="card-header text-center">
           <h2 class="card-title">Create New Card</h2>
@@ -993,7 +993,7 @@ Object.assign(App, {
             <span class="anonymous-card-banner-icon">💾</span>
             <span>
               This card is saved locally in your browser.
-              <a href="/register" class="anonymous-card-banner-link">Create an account</a> to save it permanently and unlock the AI Goal Wizard.
+              <a href="/register" class="anonymous-card-banner-link">Create an account</a> to save it permanently.
             </span>
           </div>
         </div>
@@ -1070,20 +1070,20 @@ Object.assign(App, {
             <div class="suggestions-header">
               <h3 class="suggestions-title">Suggestions</h3>
               <div class="flex gap-sm flex-wrap">
-                ${isAnon ? `
+                ${this.aiEnabled && isAnon ? `
                   <button class="btn btn-secondary btn-sm" data-action="show-ai-auth-modal" title="Create an account to use AI features">
                     🧙 AI
                   </button>
-                ` : `
+                ` : this.aiEnabled ? `
                   <button class="btn btn-secondary btn-sm" id="ai-btn" data-action="open-ai-wizard" data-card-id="${this.escapeHtml(this.currentCard.id)}" data-desired-count="${capacity - itemCount}" title="Generate goals with AI" ${itemCount >= capacity ? 'disabled' : ''}>
                     🧙 AI
                   </button>
-                  ${this.hasFeature('ai_enhancements') ? `
+                  ${this.aiEnabled && this.hasFeature('ai_enhancements') ? `
                     <button class="btn btn-secondary btn-sm" id="ai-fill-empty-btn" data-action="ai-fill-empty-premium" title="Fill empty squares with Premium AI" ${itemCount >= capacity ? 'disabled' : ''}>
                       ✨ AI Fill
                     </button>
                   ` : ''}
-                `}
+                ` : ''}
                 <button class="btn btn-secondary btn-sm" id="fill-empty-btn" data-action="fill-empty-spaces" ${itemCount >= capacity ? 'disabled' : ''}>
                   ✨ Fill
                 </button>
@@ -1982,7 +1982,7 @@ Object.assign(App, {
     const modalTitle = isEmpty ? 'Add Goal' : 'Edit Goal';
     const aiButtonLabel = isEmpty ? '🧙 Suggest with AI' : '🧙 Refine with AI';
     const aiHintPlaceholder = isEmpty ? 'Theme or constraint (optional)' : 'What should change? (optional)';
-    const canUsePremiumAI = !isEmpty && !this.isAnonymousMode && this.hasFeature('ai_enhancements');
+    const canUsePremiumAI = this.aiEnabled && !isEmpty && !this.isAnonymousMode && this.hasFeature('ai_enhancements');
     const premiumMeter = this.formatPremiumAIStatusLine(this.premiumAIStatus);
     const premiumSection = canUsePremiumAI ? `
         <div class="form-group ai-guide-section">
@@ -2004,7 +2004,7 @@ Object.assign(App, {
         </div>
     ` : '';
 
-    const aiSection = `
+    const aiSection = this.aiEnabled ? `
         <div class="form-group ai-guide-section">
           <label class="form-label">AI Assist</label>
           <input type="text" id="ai-refine-hint" class="form-input form-input--sm" placeholder="${aiHintPlaceholder}" maxlength="500">
@@ -2013,7 +2013,7 @@ Object.assign(App, {
           </button>
           <div id="ai-refine-results" class="ai-guide-results"></div>
         </div>
-    `;
+    ` : '';
     const removeButton = `
           <button type="button" class="btn btn-danger flex-1" data-action="remove-item" data-position="${position}" ${isEmpty ? 'disabled aria-disabled="true" title="No goal to remove"' : ''}>
             Remove
@@ -2080,6 +2080,7 @@ Object.assign(App, {
   },
 
   async handleAIRefine(position) {
+    if (!this.aiEnabled) return;
     if (this.isAnonymousMode || !this.user) {
       this.showAIAuthModal();
       return;
@@ -2142,6 +2143,7 @@ Object.assign(App, {
   },
 
   async handleAIPremiumAssist(position) {
+    if (!this.aiEnabled) return;
     if (this.isAnonymousMode || !this.user) {
       this.showAIAuthModal();
       return;
@@ -2614,6 +2616,7 @@ Object.assign(App, {
   },
 
   async fillEmptyWithAI() {
+    if (!this.aiEnabled) return;
     if (this.isAnonymousMode || !this.user) {
       this.showAIAuthModal();
       return;
@@ -3361,6 +3364,7 @@ Object.assign(App, {
   },
 
   showAIAuthModal() {
+    if (!this.aiEnabled) return;
     this.openModal('Use the AI Goal Wizard', `
       <div class="finalize-auth-modal">
         <p class="mb-lg">

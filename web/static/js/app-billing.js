@@ -42,7 +42,7 @@ Object.assign(App, {
         badgeSlot.innerHTML = this.isPremium ? '<span class="badge badge-premium">Premium</span>' : '';
       }
       this.renderBillingStatus(statusEl, status);
-      await this.refreshPremiumAIStatus();
+      if (this.aiEnabled) await this.refreshPremiumAIStatus();
     } catch (error) {
       statusEl.innerHTML = '<p class="text-muted" id="billing-error"></p>';
       const errorEl = document.getElementById('billing-error');
@@ -223,7 +223,7 @@ Object.assign(App, {
         <ul class="upgrade-list">
           <li>Premium badge (visible to friends)</li>
           <li>Templates + 1‑click New Year rollover</li>
-          <li>AI Enhancements: 100/month</li>
+          ${this.aiEnabled ? '<li>AI Enhancements: 100/month</li>' : ''}
         </ul>
 
         <h4 class="mt-lg">Premium plan</h4>
@@ -545,10 +545,10 @@ Object.assign(App, {
             <h3>Premium badge</h3>
             <p class="text-muted">Show a Premium badge on your profile and to friends.</p>
           </div>
-          <div class="card premium-feature">
+          ${this.aiEnabled ? `<div class="card premium-feature">
             <h3>AI Enhancements</h3>
             <p class="text-muted">Get 100 premium AI actions per month for assist/regenerate/fill features.</p>
-          </div>
+          </div>` : ''}
           <div class="card premium-feature">
             <h3>Templates + rollover</h3>
             <p class="text-muted">Create reusable templates and roll over a card to a new year in one click.</p>
@@ -560,7 +560,7 @@ Object.assign(App, {
           <div id="premium-billing-status" class="billing-status">
             <div class="text-center"><div class="spinner spinner--small"></div></div>
           </div>
-          <p id="premium-ai-status" class="text-muted text-sm mt-md"></p>
+          ${this.aiEnabled ? '<p id="premium-ai-status" class="text-muted text-sm mt-md"></p>' : ''}
           <p class="text-muted text-sm mt-md">
             After checkout, you'll return to your Profile while we activate Premium (webhook-driven; may take a moment).
           </p>
@@ -621,7 +621,7 @@ Object.assign(App, {
       status = await API.billing.getStatus();
       this.applyBillingStatus(status);
       if (statusEl) this.renderBillingStatus(statusEl, status);
-      await this.refreshPremiumAIStatus();
+      if (this.aiEnabled) await this.refreshPremiumAIStatus();
     } catch (error) {
       if (statusEl) {
         statusEl.innerHTML = '<p class="text-muted" id="premium-billing-error"></p>';

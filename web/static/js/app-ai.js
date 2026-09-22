@@ -9,6 +9,7 @@ if (!App._moduleAILoaded) {
 
 Object.assign(App, {
   formatPremiumAIStatusLine(status) {
+    if (!this.aiEnabled) return '';
     if (!status || typeof status.remaining !== 'number' || typeof status.limit !== 'number') {
       return '';
     }
@@ -21,6 +22,7 @@ Object.assign(App, {
   },
 
   renderPremiumAIStatus() {
+    if (!this.aiEnabled) return;
     const ids = ['ai-enhancements-status', 'premium-ai-status'];
     ids.forEach((id) => {
       const el = document.getElementById(id);
@@ -38,7 +40,7 @@ Object.assign(App, {
   },
 
   async refreshPremiumAIStatus() {
-    if (!this.user || !this.hasFeature('ai_enhancements')) {
+    if (!this.aiEnabled || !this.user || !this.hasFeature('ai_enhancements')) {
       this.premiumAIStatus = null;
       this.renderPremiumAIStatus();
       return null;
@@ -56,6 +58,7 @@ Object.assign(App, {
   },
 
   applyPremiumAIUsageUpdate(payload) {
+    if (!this.aiEnabled) return;
     if (!payload || typeof payload.enhancements_remaining !== 'number') return;
     if (!this.premiumAIStatus || typeof this.premiumAIStatus.limit !== 'number') {
       this.refreshPremiumAIStatus();
@@ -108,6 +111,7 @@ Object.assign(App, {
   },
 
   async handleAIRefine(position) {
+    if (!this.aiEnabled) return;
     if (this.isAnonymousMode || !this.user) {
       this.showAIAuthModal();
       return;
@@ -170,6 +174,7 @@ Object.assign(App, {
   },
 
   async handleAIPremiumAssist(position) {
+    if (!this.aiEnabled) return;
     if (this.isAnonymousMode || !this.user) {
       this.showAIAuthModal();
       return;
@@ -226,6 +231,7 @@ Object.assign(App, {
   },
 
   async fillEmptyWithAI() {
+    if (!this.aiEnabled) return;
     if (this.isAnonymousMode || !this.user) {
       this.showAIAuthModal();
       return;
@@ -321,6 +327,7 @@ Object.assign(App, {
   },
 
   showAIAuthModal() {
+    if (!this.aiEnabled) return;
     this.openModal('Use the AI Goal Wizard', `
       <div class="finalize-auth-modal">
         <p class="mb-lg">

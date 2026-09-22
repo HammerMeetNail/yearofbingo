@@ -10,10 +10,11 @@ test('clear all removes draft items', async ({ page }, testInfo) => {
   await register(page, user);
   await createCardFromAuthenticatedCreate(page, { title: 'Clear Card' });
 
-  await page.fill('#item-input', 'Clear me');
-  await page.click('#add-btn');
-  await page.fill('#item-input', 'Another goal');
-  await page.click('#add-btn');
+  for (const goal of ['Clear me', 'Another goal']) {
+    await page.fill('#item-input', goal);
+    await page.click('#add-btn');
+    await expect(page.locator('#bingo-grid').getByText(goal, { exact: true })).toBeVisible();
+  }
 
   await page.locator('#clear-btn').click();
   const modal = page.locator('#modal-overlay');
@@ -30,7 +31,7 @@ test('full draft warns before leaving without finalizing', async ({ page }, test
   await createCardFromAuthenticatedCreate(page, { title: 'Warning Card' });
 
   await page.locator('#fill-empty-btn').click();
-  await expect(page.locator('.progress-text')).toContainText('/24 items added');
+  await expect(page.locator('.progress-text')).toHaveText('24/24 items added');
 
   await page.getByRole('link', { name: 'Friends' }).click();
   await expect(page.locator('#modal-title')).toHaveText('Draft Saved');

@@ -77,11 +77,9 @@ coverage:
 
 # Run linter
 lint:
-	@chmod -R u+w .cache 2>/dev/null || true
-	rm -rf .cache/go-build .cache/go-mod .cache/golangci-lint
 	@mkdir -p .cache/bin .cache/go-build .cache/go-mod .cache/golangci-lint
 	@set -e; \
-	if command -v golangci-lint >/dev/null 2>&1 && golangci-lint version 2>/dev/null | grep -Eq 'version 2\\.'; then \
+	if command -v golangci-lint >/dev/null 2>&1 && golangci-lint version 2>/dev/null | grep -Eq 'version (v)?2\.'; then \
 		GOLANGCI_LINT=golangci-lint; \
 	else \
 		echo "Using golangci-lint $(GOLANGCI_LINT_VERSION) (v2 config detected)"; \

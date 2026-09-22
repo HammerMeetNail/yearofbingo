@@ -54,5 +54,8 @@ test('user can change password and log in with new password', async ({ page }, t
   await expectToast(page, 'Password updated successfully');
 
   await page.getByRole('button', { name: 'Sign Out' }).click();
+  // Let logout finish before a full navigation can abort its request.
+  await expectToast(page, 'Logged out successfully');
+  await expect(page).toHaveURL('/');
   await loginWithCredentials(page, user.email, 'NewPass1');
 });

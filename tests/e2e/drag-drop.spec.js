@@ -10,12 +10,11 @@ test('dragging items reorders without moving FREE cell', async ({ page }, testIn
   await register(page, user);
   await createCardFromAuthenticatedCreate(page, { title: 'Drag Card' });
 
-  await page.fill('#item-input', 'Move Me');
-  await page.click('#add-btn');
-  await page.fill('#item-input', 'Target Spot');
-  await page.click('#add-btn');
-  await page.fill('#item-input', 'Extra Goal');
-  await page.click('#add-btn');
+  for (const goal of ['Move Me', 'Target Spot', 'Extra Goal']) {
+    await page.fill('#item-input', goal);
+    await page.click('#add-btn');
+    await expect(page.locator('#bingo-grid').getByText(goal, { exact: true })).toBeVisible();
+  }
 
   const freeBefore = await page.locator('.bingo-cell--free').getAttribute('data-position');
   const filledCells = page.locator('.bingo-cell:not(.bingo-cell--free):not(.bingo-cell--empty)');
