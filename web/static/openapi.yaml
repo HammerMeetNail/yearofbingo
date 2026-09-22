@@ -11,7 +11,7 @@ info:
 
     Note: Some endpoints (e.g. AI generation) require an authenticated browser session cookie and do not accept API tokens.
     All /ai endpoints return 503 when FEATURE_AI_ENABLED is false (the default), without consuming AI quota.
-  version: 1.8.5
+  version: 1.8.10
 servers:
   - url: /api
 components:

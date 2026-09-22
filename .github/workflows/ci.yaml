@@ -459,14 +459,15 @@ jobs:
         id: manifest
         working-directory: /tmp/digests
         run: |
-          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+          docker buildx imagetools create --metadata-file "$RUNNER_TEMP/manifest-metadata.json" \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
             $(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@sha256:%s ' *)
 
       - name: Get manifest digest
         id: digest
         run: |
-          DIGEST=$(docker buildx imagetools inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest --format '{{json .Manifest.Digest}}' | tr -d '"')
-          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+          DIGEST=$(jq -er '."containerimage.descriptor".digest | select(type == "string" and test("^sha256:[0-9a-f]{64}$"))' "$RUNNER_TEMP/manifest-metadata.json")
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
           echo "Manifest digest: $DIGEST"
 
       - name: Determine image tag
@@ -488,7 +489,7 @@ jobs:
           # has no GitHub Release/assets, so the binary download 404s. Pin a real
           # release explicitly (also makes scans reproducible).
           version: v0.71.2
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.digest.outputs.digest }}
           format: "table"
           exit-code: "1"
           ignore-unfixed: true
@@ -633,6 +634,7 @@ jobs:
           EMAIL_FROM_ADDRESS=${EMAIL_FROM_ADDRESS}
           BACKUP_NOTIFY_EMAILS=${BACKUP_NOTIFY_EMAILS}
           GEMINI_API_KEY=${GEMINI_API_KEY}
+          FEATURE_AI_ENABLED=false
           BACKUP_ENCRYPTION_KEY=${BACKUP_ENCRYPTION_KEY}
           GOOGLE_OAUTH_ENABLED=${GOOGLE_OAUTH_ENABLED}
           GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID}
