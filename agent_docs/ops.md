@@ -146,6 +146,15 @@ PostgreSQL backups are stored in Cloudflare R2 (S3-compatible, 10GB free tier). 
 
 **Verification:** If daily verification fails, an error file `BACKUP_VERIFICATION_FAILED_*.txt` is written to the R2 bucket with details. Check the bucket periodically or set up Cloudflare notifications.
 
+The verifier uses a per-run private scratch directory and a named PostgreSQL data
+volume. Container and volume labels under `io.hammermeetnail.backup-verifier.*`
+identify its owned resources; a locked run reconciles abandoned labeled resources
+before creating a new one. Cleanup failure makes verification fail and sends the
+usual failure notification. Check the journal and labeled resource counts after
+deploying a verifier change and after the next scheduled run. Never use a global
+volume prune for this job. Run the real-container regression with
+`python3 tests/ops/legacy-verifier-volume.py scripts/verify-backup.sh yearofbingo`.
+
 **Email notifications (Resend):**
 - Set `BACKUP_NOTIFY_EMAILS` to a comma-separated list of recipients (requires `RESEND_API_KEY` and `EMAIL_FROM_ADDRESS`).
 - Backup success emails are sent by default; set `BACKUP_NOTIFY_SUCCESS=0` to disable.
