@@ -9,6 +9,7 @@
 #   BACKUP_ENCRYPTION_KEY - GPG passphrase used when creating backup
 
 set -euo pipefail
+umask 077
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="${ENV_FILE:-/opt/yearofbingo/.env}"
@@ -27,12 +28,9 @@ if [[ -f "${SCRIPT_DIR}/notify-email.sh" ]]; then
 fi
 
 # Configuration
-BACKUP_DIR="/tmp/yearofbingo-backups"
 R2_BUCKET="${R2_BUCKET:-yearofbingo-backups}"
-TEST_CONTAINER="yearofbingo-backup-verify"
-TEST_DB_PASSWORD="verify_password_$(date +%s)"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-ERROR_FILE="BACKUP_VERIFICATION_FAILED_${TIMESTAMP}.txt"
+ERROR_FILE="BACKUP_VERIFICATION_FAILED_${TIMESTAMP}_$$.txt"
 TEST_DB_NAME=""
 
 # Validation
@@ -94,26 +92,24 @@ EOF
     exit 1
 }
 
-# Cleanup function
-cleanup() {
-    podman rm -f "$TEST_CONTAINER" 2>/dev/null || true
-    rm -f "${BACKUP_DIR}/${BACKUP_FILE:-}" 2>/dev/null || true
-    rm -f "${BACKUP_DIR}/verify_restore.sql" 2>/dev/null || true
-    rm -f "${BACKUP_DIR}/verify_restore_psql.log" 2>/dev/null || true
-    rm -f "${BACKUP_DIR}/verify_decrypt.log" 2>/dev/null || true
-}
-trap cleanup EXIT
+source "${SCRIPT_DIR}/verify-backup-resources.sh"
+if ! verify_setup yearofbingo; then
+    write_error "Failed to prepare verifier resources"
+fi
+BACKUP_DIR="$VERIFY_WORK"
+TEST_CONTAINER="$VERIFY_CONTAINER"
+TEST_DB_PASSWORD="verify_password_${VERIFY_RUN_ID}"
+VERIFY_DB_USER=bingo
+ERROR_FILE="BACKUP_VERIFICATION_FAILED_${TIMESTAMP}_${VERIFY_RUN_ID}.txt"
 
 # Get latest backup
-BACKUP_FILE=$(rclone ls "r2:${R2_BUCKET}/" 2>/dev/null | grep -E '\.sql\.gz\.gpg$' | sort -k2 | tail -1 | awk '{print $2}')
+BACKUP_FILE=$(rclone ls "r2:${R2_BUCKET}/" 2>/dev/null | grep -E '\.sql\.gz\.gpg$' | sort -k2 | tail -1 | awk '{print $2}') || true
 
 if [[ -z "$BACKUP_FILE" ]]; then
     write_error "No backup files found in r2:${R2_BUCKET}/"
 fi
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Verifying backup: ${BACKUP_FILE}"
-
-mkdir -p "$BACKUP_DIR"
 
 # Step 1: Download
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Downloading backup..."
@@ -126,10 +122,7 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] Decrypting backup..."
 DECRYPT_LOG="${BACKUP_DIR}/verify_decrypt.log"
 if ! gpg --decrypt --batch --pinentry-mode loopback --passphrase-fd 3 3<<<"$BACKUP_ENCRYPTION_KEY" "${BACKUP_DIR}/${BACKUP_FILE}" 2>"$DECRYPT_LOG" \
     | gunzip > "${BACKUP_DIR}/verify_restore.sql" 2>>"$DECRYPT_LOG"; then
-    write_error "Failed to decrypt/decompress backup. Encryption key may be wrong or file corrupted.
-
-Decrypt output (tail):
-$(tail -n 80 "$DECRYPT_LOG" 2>/dev/null || true)"
+    write_error "Failed to decrypt/decompress backup. Encryption key may be wrong or file corrupted."
 fi
 
 SQL_SIZE=$(stat -f%z "${BACKUP_DIR}/verify_restore.sql" 2>/dev/null || stat -c%s "${BACKUP_DIR}/verify_restore.sql" 2>/dev/null)
@@ -147,12 +140,7 @@ TEST_DB_NAME="${TEST_DB_NAME:-yearofbingo}"
 
 # Step 3: Start test container
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting test PostgreSQL container..."
-if ! podman run -d \
-    --name "$TEST_CONTAINER" \
-    -e POSTGRES_USER=bingo \
-    -e POSTGRES_PASSWORD="$TEST_DB_PASSWORD" \
-    -e POSTGRES_DB="$TEST_DB_NAME" \
-    docker.io/library/postgres:16-alpine 2>&1; then
+if ! verify_run_postgres >/dev/null 2>&1; then
     write_error "Failed to start test PostgreSQL container"
 fi
 
@@ -164,11 +152,7 @@ for i in {1..60}; do
         break
     fi
     if [[ $i -eq 60 ]]; then
-        POSTGRES_LOG_TAIL="$(podman logs --tail 120 "$TEST_CONTAINER" 2>&1 || true)"
-        write_error "Test PostgreSQL container failed to become ready
-
-postgres logs (tail):
-${POSTGRES_LOG_TAIL}"
+        write_error "Test PostgreSQL container failed to become ready"
     fi
     sleep 1
 done
@@ -178,14 +162,7 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] Restoring to test container..."
 if ! podman exec -i -e PGPASSWORD="$TEST_DB_PASSWORD" "$TEST_CONTAINER" \
     psql -U bingo -d "$TEST_DB_NAME" -v ON_ERROR_STOP=1 -v VERBOSITY=terse -v SHOW_CONTEXT=never \
     < "${BACKUP_DIR}/verify_restore.sql" > "${BACKUP_DIR}/verify_restore_psql.log" 2>&1; then
-    POSTGRES_LOG_TAIL="$(podman logs --tail 120 "$TEST_CONTAINER" 2>&1 || true)"
-    write_error "Failed to restore backup to test database
-
-psql output (tail):
-$(tail -n 120 "${BACKUP_DIR}/verify_restore_psql.log" 2>/dev/null || true)
-
-postgres logs (tail):
-${POSTGRES_LOG_TAIL}"
+    write_error "Failed to restore backup to test database"
 fi
 
 # Step 5: Validate
@@ -199,6 +176,10 @@ fi
 
 CARD_COUNT=$(podman exec -e PGPASSWORD="$TEST_DB_PASSWORD" "$TEST_CONTAINER" \
     psql -U bingo -d "$TEST_DB_NAME" -t -c "SELECT COUNT(*) FROM bingo_cards;" 2>/dev/null | tr -d ' \n')
+
+if ! verify_cleanup; then
+    write_error "Failed to clean verifier resources"
+fi
 
 echo ""
 echo "=========================================="

@@ -620,11 +620,19 @@ jobs:
 
           # Copy compose file to server via tunnel
           scp compose.server.deploy.yaml ssh.yearofbingo.com:/opt/yearofbingo/compose.yaml
-          scp scripts/*.sh ssh.yearofbingo.com:/opt/yearofbingo/scripts/
+          # Install the resource helper before atomically replacing the
+          # scheduled verifier; avoid an invocation seeing a partial script.
+          for script in scripts/*.sh; do
+            if [ "$script" != scripts/verify-backup.sh ]; then
+              scp "$script" ssh.yearofbingo.com:/opt/yearofbingo/scripts/
+            fi
+          done
+          scp scripts/verify-backup.sh ssh.yearofbingo.com:/opt/yearofbingo/scripts/verify-backup.next.sh
 
           # Deploy via tunnel
           ssh ssh.yearofbingo.com << EOF
             cd /opt/yearofbingo
+            mv scripts/verify-backup.next.sh scripts/verify-backup.sh || exit 1
 
             # Create/update .env file with secrets
             cat > .env << 'ENVFILE'
